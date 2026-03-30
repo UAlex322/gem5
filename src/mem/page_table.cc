@@ -142,6 +142,13 @@ EmulationPageTable::lookup(Addr vaddr)
 bool
 EmulationPageTable::translate(Addr vaddr, Addr &paddr)
 {
+    if (0x50000000 <= vaddr && vaddr < 0x50000400) {
+        paddr = vaddr;
+        DPRINTF(MMU, "Translating MatrixAccel MMIO address: %#x->%#x\n",
+             vaddr, paddr);
+        return true;
+    }
+
     const Entry *entry = lookup(vaddr);
     if (!entry) {
         DPRINTF(MMU, "Couldn't Translate: %#x\n", vaddr);
