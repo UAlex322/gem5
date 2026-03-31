@@ -1,0 +1,7 @@
+Import("*")
+
+SimObject("AdaptiveAssoc.py", sim_objects=["AdaptiveAssoc"])
+
+Source("adaptive_assoc.cc")
+
+DebugFlag("AdaptiveAssoc")
