@@ -211,11 +211,13 @@ namespace gem5 {
                               std::vector<CacheBlk*>& evict_blks,
                               const uint64_t partition_id)
     {
-        // Получаем все возможные entries от indexing policy
+        // Get all entries from indexing policy
+
         std::vector<ReplaceableEntry*> entries =
         indexingPolicy->getPossibleEntries(key);
 
-        // Фильтруем по allocAssoc (используем только доступные way)
+        // Just if way more than allocAssoc
+
         std::vector<ReplaceableEntry*> filtered;
         for (auto* entry : entries) {
             CacheBlk* blk = static_cast<CacheBlk*>(entry);
@@ -224,7 +226,8 @@ namespace gem5 {
             }
         }
 
-        // Выбираем жертву из отфильтрованных
+        // Get filtered victim
+
         CacheBlk* victim = filtered.empty() ? nullptr :
         static_cast<CacheBlk*>(replacementPolicy->getVictim(filtered));
 
