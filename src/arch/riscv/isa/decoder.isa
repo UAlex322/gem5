@@ -6489,5 +6489,13 @@ decode QUADRANT default Unknown::unknown() {
         }
 
         0x1e: M5Op::M5Op();
+
+        0x2b: decode FUNCT3 {
+            0x0: decode FUNCT7{
+                0x0: ROp::kuznechik_enc({{
+                    Rd_sd = kuznechik_encrypt(Rs1_sd, Rs2_sd);
+                }});
+            }
+        }
     }
 }
