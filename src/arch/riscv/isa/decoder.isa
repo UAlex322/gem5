@@ -6492,9 +6492,9 @@ decode QUADRANT default Unknown::unknown() {
 
         0x2b: decode FUNCT3 {
             0x0: decode FUNCT7{
-                0x0: ROp::kuznechik_enc({{
-                    Rd_sd = kuznechik_encrypt(Rs1_sd, Rs2_sd);
-                }});
+                0x0: KuznechikFormat::kuznechik_enc({{
+                    kuznechik_encrypt(Vd_vu, Vs1_vu, Vs2_vu);
+                }}, OPIVV, SimdMiscOp);
             }
         }
     }

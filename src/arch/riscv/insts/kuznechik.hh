@@ -46,8 +46,8 @@ void compute_consts();
 void compute_values_L();
 void expand_key(const uint8_t *master_key);
 
-uint8_t* kuznechik_encrypt(const uint8_t *plaintext_128, const uint8_t *master_key);
-void kuznechik_decrypt(const uint8_t *ciphertext_128, uint8_t *plaintext_128);
+void kuznechik_encrypt(uint8_t *plaintext_128, uint8_t *master_key, uint8_t *ciphertext_128);
+void kuznechik_decrypt(uint8_t *ciphertext_128, uint8_t *plaintext_128);
 
 void fast_linear_L(const uint8_t *in_data, uint8_t *out_data);
 void fast_kuznechik_encrypt(const uint8_t *plaintext_128, uint8_t *ciphertext_128);

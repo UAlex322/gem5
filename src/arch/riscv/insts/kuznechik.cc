@@ -316,9 +316,9 @@ void expand_key(const uint8_t *master_key) {
 
 
 // Функция шифрования блока plaintext_128 в блок ciphertext_128 (каждый блок - длины 128 битов)
-uint8_t* kuznechik_encrypt(const uint8_t *plaintext_128, const uint8_t *master_key) {
+void kuznechik_encrypt(uint8_t *plaintext_128, uint8_t *master_key, uint8_t *ciphertext_128) {
     expand_key(master_key);
-    uint8_t *ciphertext_128;
+
     memcpy(ciphertext_128, plaintext_128, BLOCK_SIZE);
 
     for(int i = 0; i < 9; i ++) {  // последовательно шифруем в 10 шагов
@@ -327,7 +327,6 @@ uint8_t* kuznechik_encrypt(const uint8_t *plaintext_128, const uint8_t *master_k
         linear_L(ciphertext_128, ciphertext_128);
     }
     xor_arrays_X(ciphertext_128, iter_key[9], ciphertext_128);
-    return ciphertext_128;
 }
 
 
