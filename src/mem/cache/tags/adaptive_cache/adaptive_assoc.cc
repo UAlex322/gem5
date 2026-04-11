@@ -3,116 +3,124 @@
 #include "sim/system.hh"
 #include "cpu/base.hh"
 
-namespace gem5 {
+namespace gem5 
+{
 
-    AdaptiveAssoc::AdaptiveAssoc(const AdaptiveAssocParams &p) : BaseSetAssoc(p),
-        monitor(p.reconfig_period),
-        current_assoc(p.assoc),
-        target_assoc(p.assoc),
-        need_reconfig(false),
-        reconfig_in_progress(false),
-        reconfig_cycles_left(0),
-        cycle_counter(0),
-        reconfig_count(0),
-        reconfig_period(p.reconfig_period),
-        reconfig_overhead(p.reconfig_overhead)
+    AdaptiveAssoc::CacheFeatures::CacheFeatures(
+        double _miss_rate, 
+        uint64_t _miss_count, 
+        uint64_t _total_memory_access,
+        double _ipc, 
+        uint64_t _prev_assoc
+    ) :
+        miss_rate(_miss_rate), 
+        miss_count(_miss_count), 
+        total_mem_access(_total_memory_access), 
+        ipc(_ipc), 
+        prev_assoc(_prev_assoc) 
+        {}
+
+    uint64_t 
+    AdaptiveAssoc::DecisionTree::Predict(const CacheFeatures& f) const 
     {
+        if (f.miss_rate < 0.27) {
+            switch (f.prev_assoc) {
+                case 1:  return 1;
+                case 2:  return 2;
+                case 4:  return 4;
+                case 8:  return 8;
+                case 16: return 16;
+                default: return 16;
+            }
+        }
+        else if (f.miss_rate < 0.48) {
+            if (f.total_mem_access < 5833) {
+                return 2;
+            }
+            else if (f.total_mem_access < 9241) {
+                switch (f.prev_assoc) {
+                    case 1: 
+                    case 2: 
+                    case 4: 
+                        return 1;
+                    case 8:
+                        return 4;
+                    default:
+                        return 8;
+                }                
+            }
+            else {
+                if (f.miss_count < 19441) {
+                    return 4;
+                } else if (f.miss_count < 603810) {
+                    return 8;
+                } else {
+                    return 16;
+                }
+            }
+        }
+        else if (f.miss_rate <= 2.52) {
+            if (f.ipc < 41895) {
+                return 4;
+            } else if (f.ipc < 820036) {
+                return 8;
+            } else {
+                return 16;
+            }
+        }
+        return 16;
+    }
 
+  AdaptiveAssoc::PerformanceMonitor::PerformanceMonitor(
+        AdaptiveAssoc* _cache_tag, 
+        uint64_t _reconfig_period, 
+        Tick _proc_time_clock
+    ) :
+        nextDecisionEvent([this](){ processNextDecisionEvent(); }, name() + "nextDecisionEvent"),
+        nextPeriodEndEvent([this](){ processPeriodEndEvent(); }, name() + "nextPeriodEndEvent"),
+        instructions(0), 
+        mem_accesses(0), 
+        cache_misses(0), 
+        cache_tag(_cache_tag),
+        proc_time_clock(_proc_time_clock), 
+        period_start(0), 
+        reconfig_period(_reconfig_period), 
+        decision_period(_reconfig_period / 10),
+        in_decision_phase(true), 
+        {}
+
+    AdaptiveAssoc::AdaptiveAssoc(const AdaptiveAssocParams &p) : 
+        BaseSetAssoc(p),
+        parent_cache(p.parent_cache),
+        cpus(p.cpus),
+        monitor(this, p.reconfig_period),
+        current_assoc(16),
+        reconfig_period(p.reconfig_period),
+    {
         DPRINTF(AdaptiveAssoc, "Adaptive cache initialized.\n"
             "  Reconfig period: %d cycles\n"
-            "  Reconfig overhead: %d cycles\n"
             "  Initial associativity: %d-way\n"
             "  Decision period: %d cycles (10%%)\n",
-                reconfig_period, reconfig_overhead,
-                current_assoc, reconfig_period / 10);
+                reconfig_period,
+                current_assoc,
+                reconfig_period / 10
+        );
     }
 
     void AdaptiveAssoc::init() {
         BaseSetAssoc::init();
-
-        // Set new start time
-
-        monitor.startNewPeriod(curTick());
-
-        // Get clock from processor
-
-        if (system && !system->threads.empty() && system->threads[0])
-            monitor.setCpuClock(system->threads[0]->getCpuPtr()->clockPeriod());
+        BaseCPU* cpu = cpus[0];
+        monitor.setCpuClock(cpu->clockPeriod());
+        monitor.startNewPeriod(cpu->clockEdge());
     }
 
     CacheBlk*
     AdaptiveAssoc::accessBlock(const PacketPtr pkt, Cycles &lat)
     {
-        // Access from Parent
-
         CacheBlk* blk = BaseSetAssoc::accessBlock(pkt, lat);
-
-        // Check hit or miss
-
         bool hit = (blk != nullptr && blk->isValid());
         monitor.onAccess(hit);
-
-        // Update Cycle
-
-        updateCycle(curTick());
-
         return blk;
-    }
-
-    void AdaptiveAssoc::updateCycle(Tick now)
-    {
-        cycle_counter++;
-
-        // If reconfiguration
-
-        if (reconfig_in_progress) {
-            if (reconfig_cycles_left > 0) {
-                reconfig_cycles_left--;
-            }
-            if (reconfig_cycles_left == 0) {
-                reconfig_in_progress = false;
-                need_reconfig = false;
-                DPRINTF(AdaptiveAssoc, "Reconfiguration completed. "
-                    "New associativity: %d-way\n", current_assoc);
-            }
-            return;
-        }
-
-        // Check if Decision Time
-
-        if (monitor.isDecisionTime(now)) {
-            monitor.endDecisionPhase(now, current_assoc);
-
-            CacheFeatures features;
-            if (monitor.getFeatures(features)) {
-                int predicted = decisionTree.predict(features);
-                target_assoc = static_cast<unsigned>(predicted);
-
-                DPRINTF(AdaptiveAssoc, "Decision: miss_rate_pct=%.3f%%, "
-                    "miss_count=%llu, total_mem=%llu, ipc=%.3f, prev_assoc=%llu -> %d-way\n",
-                    features.miss_rate_pct,
-                    (unsigned long long)features.miss_count,
-                    (unsigned long long)features.total_mem_access,
-                    features.ipc,
-                    (unsigned long long)features.prev_assoc,
-                    target_assoc);
-
-                if (target_assoc != current_assoc) {
-                    need_reconfig = true;
-                    DPRINTF(AdaptiveAssoc, "Scheduling reconfiguration: "
-                        "%d-way -> %d-way\n", current_assoc, target_assoc);
-                }
-            }
-        }
-
-        // Is period end
-
-        if (monitor.isPeriodEnd(now)) {
-            monitor.startNewPeriod(now);
-            if (need_reconfig) {
-                reconfigureAssociativity(target_assoc);
-            }
-        }
     }
 
     void AdaptiveAssoc::reconfigureAssociativity(unsigned new_assoc)
@@ -122,27 +130,10 @@ namespace gem5 {
         DPRINTF(AdaptiveAssoc, "Starting reconfiguration: %d-way -> %d-way\n",
                 current_assoc, new_assoc);
 
-        // Writeback to mem
-
         writebackDirtyBlocks();
-
-        // Cleat cache
-
         flushCache();
-
-        // Set max way allocation
-
         setWayAllocationMax(new_assoc);
-
-        // Change associativity
-
         current_assoc = new_assoc;
-
-        // Reconfiguration overhead
-
-        reconfig_cycles_left = reconfig_overhead;
-        reconfig_in_progress = true;
-        reconfig_count++;
 
         DPRINTF(AdaptiveAssoc, "Reconfiguration started. %d cycles remaining\n",
                 reconfig_cycles_left);
@@ -156,27 +147,18 @@ namespace gem5 {
 
         for (auto& blk : blks) {
             if (blk.isSet(CacheBlk::DirtyBit)) {
-
-                // Restore physical addr
-
                 Addr blk_addr = regenerateBlkAddr(&blk);
 
                 DPRINTF(AdaptiveAssoc, "Writeback: addr=%#lx\n", blk_addr);
-
-                // Make request
-
                 RequestPtr req = std::make_shared<Request>(
                     blk_addr, blkSize, 0, Request::wbRequestorId);
-
                 if (blk.isSecure()) {
                     req->setFlags(Request::SECURE);
                 }
 
                 PacketPtr pkt = new Packet(req, MemCmd::WriteReq);
                 pkt->dataStatic(blk.data);
-
                 system->getPhysMem().access(pkt);
-
                 blk.clearCoherenceBits(CacheBlk::DirtyBit);
                 dirty_count++;
 
@@ -191,9 +173,6 @@ namespace gem5 {
     void AdaptiveAssoc::flushCache()
     {
         int invalidated = 0;
-
-        // Invalidate all
-
         for (auto& blk : blks) {
             if (blk.isValid()) {
                 invalidate(&blk);
@@ -211,23 +190,15 @@ namespace gem5 {
                               std::vector<CacheBlk*>& evict_blks,
                               const uint64_t partition_id)
     {
-        // Get all entries from indexing policy
-
-        std::vector<ReplaceableEntry*> entries =
-        indexingPolicy->getPossibleEntries(key);
-
-        // Just if way more than allocAssoc
-
+        std::vector<ReplaceableEntry*> entries = indexingPolicy->getPossibleEntries(key);
         std::vector<ReplaceableEntry*> filtered;
+        
         for (auto* entry : entries) {
             CacheBlk* blk = static_cast<CacheBlk*>(entry);
             if (blk->getWay() < allocAssoc) {
                 filtered.push_back(entry);
             }
         }
-
-        // Get filtered victim
-
         CacheBlk* victim = filtered.empty() ? nullptr :
         static_cast<CacheBlk*>(replacementPolicy->getVictim(filtered));
 

@@ -8,110 +8,64 @@
 
 #include "base/logging.hh"
 #include "base/types.hh"
+#include "cpu/base.hh"
+#include "mem/cache/base.hh"
+#include "mem/cache/cache.hh"
 #include "mem/cache/cache_blk.hh"
 #include "mem/cache/replacement_policies/base.hh"
 #include "mem/cache/replacement_policies/replaceable_entry.hh"
 #include "mem/cache/tags/base.hh"
+#include "mem/cache/tags/base_set_assoc.hh"
 #include "mem/cache/tags/indexing_policies/base.hh"
 #include "mem/cache/tags/partitioning_policies/partition_manager.hh"
 #include "mem/packet.hh"
-#include "params/BaseSetAssoc.hh"
+#include "sim/clocked_object.hh"
+#include "sim/cur_tick.hh"
+#include "sim/eventq.hh"
 
 #include "mem/cache/tags/base_set_assoc.hh"
 #include "params/AdaptiveAssoc.hh"
 #include "debug/AdaptiveAssoc.hh"
-#include "sim/cur_tick.hh"
-#include "sim/eventq.hh"
+
 
 namespace gem5 {
 
+  protected:
+
     class System;
     class AdaptiveAssoc : public BaseSetAssoc
-    {
-    private:
+    {   
 
-        // Parameters of Cache at time
-
+        // Parameters of Cache at time (100%)
         struct CacheFeatures {
-            double miss_rate_pct;        // Miss rate %
+
+            double miss_rate;            // Miss rate %
             uint64_t miss_count;         // Number of misses
             uint64_t total_mem_access;   // Total mem access
             double ipc;                  // Instructions per cycle
             uint64_t prev_assoc;         // Previous associativity
 
-            CacheFeatures() : miss_rate_pct(0.0), miss_count(0),
-                total_mem_access(0), ipc(0.0), prev_assoc(16) {}
-
-            CacheFeatures(double mr_pct, uint64_t mc, uint64_t tma,
-                          double i, uint64_t pa) :
-                miss_rate_pct(mr_pct), miss_count(mc), total_mem_access(tma), ipc(i), prev_assoc(pa) {}
+            CacheFeatures(
+                double _miss_rate = 0.0, 
+                uint64_t _miss_count = 0, 
+                uint64_t _total_memory_access = 0,
+                double _ipc = 0.0, 
+                uint64_t _prev_assoc = 16
+            );
         };
 
-        // Decision Tree
-
+        // Decision Tree (100%)
         class DecisionTree
         {
         public:
-            DecisionTree() = default;
-
-            int predict(const CacheFeatures& f) const
-            {
-                // Ready variant
-
-                if (f.miss_rate_pct < 0.27) {   // Miss rate % < 0.27
-                    switch (f.prev_assoc) {
-                        case 1:  return 1;
-                        case 2:  return 2;
-                        case 4:  return 4;
-                        case 8:  return 8;
-                        case 16: return 16;
-                        default: return 16;
-                    }
-                }
-                else if (f.miss_rate_pct < 0.48) {
-                    if (f.total_mem_access < 5833) {
-                        return 2;
-                    }
-                    else if (f.total_mem_access < 9241) {
-                        if (f.prev_assoc == 1 || f.prev_assoc == 2 || f.prev_assoc == 4) {
-                            return 1;
-                        } else if (f.prev_assoc == 8) {
-                            return 4;
-                        } else {
-                            return 8;
-                        }
-                    }
-                    else {
-                        if (f.miss_count < 19441) {
-                            return 4;
-                        } else if (f.miss_count < 603810) {
-                            return 8;
-                        } else {
-                            return 16;
-                        }
-                    }
-                }
-                else if (f.miss_rate_pct <= 2.52) {
-                    if (f.ipc < 41895) {
-                        return 4;
-                    } else if (f.ipc < 820036) {
-                        return 8;
-                    } else {
-                        return 16;
-                    }
-                }
-                else {
-                    return 16;
-                }
-            }
-
+            uint64_t Predict(const CacheFeatures& f) const;
         };
 
         // Monitor that collects info about cache, ipc etc.
-
-        class PerformanceMonitor
+        class PerformanceMonitor : public ClockedObject
         {
-        private:
+            EventFunctionWrapper nextDecisionEvent;
+            EventFunctionWrapper nextPeriodEndEvent;
 
             uint64_t instructions;      // Number of instructions
             uint64_t mem_accesses;      // Number of access to mem
@@ -119,42 +73,54 @@ namespace gem5 {
 
             AdaptiveAssoc* cache_tag;   // Pointer to cache
 
-            Tick procTimeClock;         // How much Tick in one Clock of processor
-            Tick period_start;          // Time when began current reconfiguration period
+            Tick proc_time_clock;         // How much Tick in one Clock of processor
+            Tick period_start;
 
             uint64_t reconfig_period;   // Time of one reconfiguration period
             uint64_t decision_period;   // Time is spend to decision making period
 
             bool in_decision_phase;     // Is decision making period phase
-            bool features_ready;        // Cache features are ready
 
+            CacheFeatures features;    // Last cache info
 
-            CacheFeatures last_features;    // Last cache info
+            void processNextDecisionEvent();
+            void processPeriodEndEvent();
 
         public:
-            PerformanceMonitor(uint64_t period = 30000000, Tick _procTimeClock = 1000) : instructions(0), mem_accesses(0), cache_misses(0), cache_tag(nullptr),
-                procTimeClock(_procTimeClock), period_start(0), reconfig_period(period), decision_period(period / 10),
-                in_decision_phase(true), features_ready(false) {}
+
+            PerformanceMonitor(
+                AdaptiveAssoc* _cache_tag, 
+                uint64_t _reconfig_period = 30000000, 
+                Tick _proc_time_clock = 1000
+            );
 
             // setCpuClock
-
             void setCpuClock(Tick tm) {
-                procTimeClock = tm;
+                proc_time_clock = tm;
             }
 
-            void onAccess(bool hit) {           // Access to mem had happened
-                if (in_decision_phase) {
-                    mem_accesses++;
-                    if (!hit)
-                        cache_misses++;
-                }
+            // Access to mem had happened
+            void onAccess(bool hit) {
+                mem_accesses++;
+                if (!hit)
+                    cache_misses++;
             }
 
-            void onInstruction() {              // Access to instruction
-                if (in_decision_phase) instructions++;
+            void startNewPeriod(Tick now) {
+                period_start = now;
+                instructions = 0;
+                mem_accesses = 0;
+                cache_misses = 0;
+                in_decision_phase = true;
+
+                if (nextDecisionEvent.scheduled()) deschedule(nextDecisionEvent);
+                schedule(nextDecisionEvent, now + decision_period);
+
+                if (nextPeriodEndEvent.scheduled()) deschedule(nextPeriodEndEvent);
+                schedule(nextPeriodEndEvent, now + reconfig_period);
             }
 
-            bool isDecisionTime(Tick now) const {
+            /*bool isDecisionTime(Tick now) const {
                 if (!in_decision_phase)
                     return false;
                 return (now - period_start) >= decision_period;
@@ -168,7 +134,6 @@ namespace gem5 {
                 ((double)cache_misses / mem_accesses) * 100.0 : 0.0;
 
                 // Save last features
-
                 last_features = CacheFeatures(
                     miss_rate_pct, cache_misses, mem_accesses, ipc_val, prev_assoc);
                 features_ready = true;
@@ -180,7 +145,6 @@ namespace gem5 {
             }
 
             // getFeatures
-
             bool getFeatures(CacheFeatures& f) const {
                 if (!features_ready)
                     return false;
@@ -189,13 +153,11 @@ namespace gem5 {
             }
 
             // Is Reconfiguration period ended
-
             bool isPeriodEnd(Tick now) const {
                 return (now - period_start) >= reconfig_period;
             }
 
             // Start new period
-
             void startNewPeriod(Tick now) {
                 period_start = now;
                 instructions = 0;
@@ -203,10 +165,15 @@ namespace gem5 {
                 cache_misses = 0;
                 in_decision_phase = true;
                 features_ready = false;
+
+                if (nextDecisionEvent.scheduled()) deschedule(nextDecisionEvent);
+                schedule(nextDecisionEvent, now + decision_period);
+
+                if (nextPeriodEndEvent.scheduled()) deschedule(nextPeriodEndEvent);
+                schedule(nextPeriodEndEvent, now + reconfig_period);
             }
 
             // Set null values
-
             void reset() {
                 instructions = 0;
                 mem_accesses = 0;
@@ -220,28 +187,22 @@ namespace gem5 {
             double getMissRatePct() const {
                 return (mem_accesses > 0) ?
                 ((double)cache_misses / mem_accesses) * 100.0 : 0.0;
-            }
+            }*/
         };
 
-        DecisionTree decisionTree;      // Decision Tree
+        DecisionTree decision_tree;      // Decision Tree
         PerformanceMonitor monitor;     // Monitor that does many work
+        BaseCache* parent_cache;        // Pointer to cache
+        std::vector<BaseCPU*> cpus;     // Vector of cores
 
         unsigned current_assoc;     // Current associativity
-        unsigned target_assoc;      // Target associativity
-        bool need_reconfig;         // Is reconfig should start
-        bool reconfig_in_progress;  // Is reconfiguration period
-        uint64_t reconfig_cycles_left;  // Cycles until end
-        uint64_t cycle_counter;     // Cycle counter
-        uint64_t reconfig_count;    // Amount of reconfigurations
         uint64_t reconfig_period;   // Time of reconfiguration period
-        uint64_t reconfig_overhead; // Reconfiguration overhead
 
-    public:
+  public:
         AdaptiveAssoc(const AdaptiveAssocParams &p);
         virtual ~AdaptiveAssoc() {}
 
         CacheBlk* accessBlock(const PacketPtr pkt, Cycles &lat) override;   // Access to cache
-        void updateCycle(Tick now);                                         // Update state of cache
         void reconfigureAssociativity(unsigned new_assoc);                  // Change associativity
         unsigned getCurrentAssoc() const { return current_assoc; }          // Get current associativity
         uint64_t getReconfigCount() const { return reconfig_count; }        // Get amount of reconfigurations
@@ -251,7 +212,7 @@ namespace gem5 {
                              std::vector<CacheBlk*>& evict_blks,
                              const uint64_t partition_id=0) override;       // Find victim
 
-    private:
+  protected:
 
         void writebackDirtyBlocks();    // Writeback to memory
         void flushCache();              // Clear cache

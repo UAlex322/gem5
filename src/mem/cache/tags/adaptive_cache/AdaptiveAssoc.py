@@ -1,4 +1,6 @@
+from m5.objects import BaseCPU
 from m5.objects import BaseSetAssoc
+from m5.objects import BaseCache
 from m5.params import *
 
 class AdaptiveAssoc(BaseSetAssoc):
@@ -7,9 +9,12 @@ class AdaptiveAssoc(BaseSetAssoc):
     cxx_class = "gem5::AdaptiveAssoc"
 
     # Get time of reconfiguration period
-
     reconfig_period = Param.Int(30000000, "reconfiguration period")
 
-    # Reconfiguration delay
+    # Get parent cache
+    parent_cache = Param.BaseCache(Parent.any, "pointer to cache")
 
-    reconfig_overhead = Param.Int(500, "Reconfiguration overhead in cycles (500 from paper)")
+    # Get cores
+    cpus = VectorParam.BaseCPU([], "std::vector of cpu cores")
+
+
