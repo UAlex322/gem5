@@ -80,20 +80,34 @@ AdaptiveAssoc::PerformanceMonitor::executedInsts()
             tmp_insts += cache_tag->cpus[i]->getCurrentInstCount(j);
         }
     }
+    return tmp_insts;
 }
 
 void
 AdaptiveAssoc::PerformanceMonitor::processNextDecisionEndEvent()
 {
-    in_decision_phase = false;
     instructions = executedInsts() - instructions;
     uint64_t cycles = (curTick() - period_start) / proc_time_clock;
-    features = {cache_misses / mem_accesses * 100, cache_misses, mem_accesses,
-                instructions / cycles, cache_tag->current_assoc};
+
+    if (mem_accesses != 0) {
+        features.miss_rate = (double)cache_misses / mem_accesses * 100;
+    } else {
+        return;
+    }
+    if (cycles != 0) {
+        features.ipc = (double)instructions / cycles;
+    } else {
+        return;
+    }
+    features.miss_count = cache_misses;
+    features.total_mem_access = mem_accesses;
+    features.prev_assoc = cache_tag->current_assoc;
+
     unsigned new_assoc = cache_tag->decision_tree.Predict(features);
     if (new_assoc == cache_tag->current_assoc) {
         return;
     }
+    cache_tag->reconfigureAssociativity(new_assoc);
 }
 
 void
@@ -116,7 +130,7 @@ AdaptiveAssoc::PerformanceMonitor::PerformanceMonitor(
       proc_time_clock(_proc_time_clock),
       period_start(0),
       reconfig_period(_reconfig_period * _proc_time_clock),
-      decision_period(_reconfig_period * _proc_time_clock / 10),
+      decision_period(_reconfig_period * _proc_time_clock / 10)
 {}
 
 void
@@ -141,7 +155,6 @@ AdaptiveAssoc::PerformanceMonitor::startNewPeriod(Tick now)
     instructions = executedInsts();
     mem_accesses = 0;
     cache_misses = 0;
-    in_decision_phase = true;
 
     if (nextDecisionEndEvent.scheduled()) {
         deschedule(nextDecisionEndEvent);
@@ -160,7 +173,7 @@ AdaptiveAssoc::AdaptiveAssoc(const AdaptiveAssocParams &p)
       cpus(p.cpus),
       monitor(this, p.reconfig_period),
       current_assoc(16),
-      reconfig_period(p.reconfig_period),
+      reconfig_period(p.reconfig_period)
 {
     DPRINTF(AdaptiveAssoc,
             "Adaptive cache initialized.\n"
@@ -174,7 +187,7 @@ void
 AdaptiveAssoc::init()
 {
     BaseSetAssoc::init();
-    if (cpus.size != 0) {
+    if (cpus.size() != 0) {
         BaseCPU *cpu = cpus[0];
         monitor.setCpuClock(cpu->clockPeriod());
         monitor.startNewPeriod(cpu->clockEdge());
@@ -193,26 +206,12 @@ AdaptiveAssoc::accessBlock(const PacketPtr pkt, Cycles &lat)
 void
 AdaptiveAssoc::reconfigureAssociativity(unsigned new_assoc)
 {
-    if (new_assoc == current_assoc) {
-        return;
-    }
-
-    DPRINTF(AdaptiveAssoc,
-            "Starting reconfiguration:
-                    % d -
-                way->% d -
-                way\n ",
-                current_assoc,
-            new_assoc);
-
+    DPRINTF(AdaptiveAssoc, "Starting reconfiguration: %d-way -> %d-way\n",
+            current_assoc, new_assoc);
     writebackDirtyBlocks();
     flushCache();
     setWayAllocationMax(new_assoc);
     current_assoc = new_assoc;
-
-    DPRINTF(AdaptiveAssoc, "Reconfiguration started.
-                               % d cycles remaining\n ",
-                               reconfig_cycles_left);
 }
 
 unsigned
@@ -230,34 +229,20 @@ AdaptiveAssoc::getReconfigPeriod() const
 void
 AdaptiveAssoc::writebackDirtyBlocks()
 {
-    int dirty_count = 0;
-
-    // Find dirty blocks
-
     for (auto &blk : blks) {
         if (blk.isSet(CacheBlk::DirtyBit)) {
-            Addr blk_addr = regenerateBlkAddr(&blk);
-
-            DPRINTF(AdaptiveAssoc, "Writeback: addr=%#lx\n", blk_addr);
-            RequestPtr req = std::make_shared<Request>(blk_addr, blkSize, 0,
-                                                       Request::wbRequestorId);
-            if (blk.isSecure()) {
-                req->setFlags(Request::SECURE);
+            PacketPtr pkt = parent_cache->writebackBlk(&blk);
+            if (pkt) {
+                DPRINTF(AdaptiveAssoc,
+                        "Timing writeback initiated for addr=%#lx\n",
+                        regenerateBlkAddr(&blk));
+            } else {
+                DPRINTF(AdaptiveAssoc,
+                        "Failed to initiate writeback for addr=%#lx\n",
+                        regenerateBlkAddr(&blk));
             }
-
-            PacketPtr pkt = new Packet(req, MemCmd::WriteReq);
-            pkt->dataStatic(blk.data);
-            system->getPhysMem().access(pkt);
-            blk.clearCoherenceBits(CacheBlk::DirtyBit);
-            dirty_count++;
-
-            delete pkt;
         }
     }
-
-    DPRINTF(AdaptiveAssoc, "Writeback completed.
-                               % d dirty blocks written.\n ",
-                                 dirty_count);
 }
 
 void
@@ -271,10 +256,8 @@ AdaptiveAssoc::flushCache()
         }
     }
 
-    DPRINTF(AdaptiveAssoc, "Cache flush completed.
-                               Invalidated %
-                               d blocks.\n ",
-                               invalidated);
+    DPRINTF(AdaptiveAssoc, "Cache flush completed. %d blocks invalidated.\n",
+            invalidated);
 }
 
 CacheBlk *
