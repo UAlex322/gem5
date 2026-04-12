@@ -4,6 +4,7 @@ from m5.objects import (
     BaseSetAssoc,
 )
 from m5.params import *
+from m5.proxy import *
 
 
 class AdaptiveAssoc(BaseSetAssoc):

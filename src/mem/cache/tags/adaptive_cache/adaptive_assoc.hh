@@ -64,11 +64,8 @@ class AdaptiveAssoc : public BaseSetAssoc
     };
 
     // Monitor that collects info about cache, ipc etc.
-    class PerformanceMonitor : public ClockedObject
+    class PerformanceMonitor
     {
-        EventFunctionWrapper nextDecisionEndEvent;
-        EventFunctionWrapper nextPeriodEndEvent;
-
         // Number of instructions
         uint64_t instructions;
         // Number of access to mem
@@ -93,8 +90,6 @@ class AdaptiveAssoc : public BaseSetAssoc
         CacheFeatures features;
 
         uint64_t executedInsts();
-        void processNextDecisionEndEvent();
-        void processPeriodEndEvent();
 
       public:
         friend AdaptiveAssoc;
@@ -111,7 +106,16 @@ class AdaptiveAssoc : public BaseSetAssoc
 
         // Start new reconfiguration period
         void startNewPeriod(Tick now);
+
+        // Call when decision-making event is over
+        void processNextDecisionEndEvent();
+
+        // Call when reconfiguration period is over
+        void processPeriodEndEvent();
     };
+
+    EventFunctionWrapper nextDecisionEndEvent;
+    EventFunctionWrapper nextPeriodEndEvent;
 
     // Decision Tree
     DecisionTree decision_tree;

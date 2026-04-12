@@ -119,11 +119,7 @@ AdaptiveAssoc::PerformanceMonitor::processPeriodEndEvent()
 AdaptiveAssoc::PerformanceMonitor::PerformanceMonitor(
     AdaptiveAssoc *_cache_tag, uint64_t _reconfig_period,
     Tick _proc_time_clock)
-    : nextDecisionEndEvent([this]() { processNextDecisionEndEvent(); },
-                           name() + "nextDecisionEndEvent"),
-      nextPeriodEndEvent([this]() { processPeriodEndEvent(); },
-                         name() + "nextPeriodEndEvent"),
-      instructions(0),
+    : instructions(0),
       mem_accesses(0),
       cache_misses(0),
       cache_tag(_cache_tag),
@@ -156,15 +152,16 @@ AdaptiveAssoc::PerformanceMonitor::startNewPeriod(Tick now)
     mem_accesses = 0;
     cache_misses = 0;
 
-    if (nextDecisionEndEvent.scheduled()) {
-        deschedule(nextDecisionEndEvent);
+    if (cache_tag->nextDecisionEndEvent.scheduled()) {
+        cache_tag->deschedule(cache_tag->nextDecisionEndEvent);
     }
-    schedule(nextDecisionEndEvent, now + decision_period);
+    cache_tag->schedule(cache_tag->nextDecisionEndEvent,
+                        now + decision_period);
 
-    if (nextPeriodEndEvent.scheduled()) {
-        deschedule(nextPeriodEndEvent);
+    if (cache_tag->nextPeriodEndEvent.scheduled()) {
+        cache_tag->deschedule(cache_tag->nextPeriodEndEvent);
     }
-    schedule(nextPeriodEndEvent, now + reconfig_period);
+    cache_tag->schedule(cache_tag->nextPeriodEndEvent, now + reconfig_period);
 }
 
 AdaptiveAssoc::AdaptiveAssoc(const AdaptiveAssocParams &p)
@@ -173,7 +170,11 @@ AdaptiveAssoc::AdaptiveAssoc(const AdaptiveAssocParams &p)
       cpus(p.cpus),
       monitor(this, p.reconfig_period),
       current_assoc(16),
-      reconfig_period(p.reconfig_period)
+      reconfig_period(p.reconfig_period),
+      nextDecisionEndEvent([this]() { monitor.processNextDecisionEndEvent(); },
+                           name() + "nextDecisionEndEvent"),
+      nextPeriodEndEvent([this]() { monitor.processPeriodEndEvent(); },
+                         name() + "nextPeriodEndEvent")
 {
     DPRINTF(AdaptiveAssoc,
             "Adaptive cache initialized.\n"
