@@ -1,7 +1,10 @@
-from m5.objects import BaseCPU
-from m5.objects import BaseSetAssoc
-from m5.objects import BaseCache
+from m5.objects import (
+    BaseCache,
+    BaseCPU,
+    BaseSetAssoc,
+)
 from m5.params import *
+
 
 class AdaptiveAssoc(BaseSetAssoc):
     type = "AdaptiveAssoc"
@@ -16,5 +19,3 @@ class AdaptiveAssoc(BaseSetAssoc):
 
     # Get cores
     cpus = VectorParam.BaseCPU([], "std::vector of cpu cores")
-
-

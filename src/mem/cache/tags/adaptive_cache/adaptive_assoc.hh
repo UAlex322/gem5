@@ -9,6 +9,7 @@
 #include "base/logging.hh"
 #include "base/types.hh"
 #include "cpu/base.hh"
+#include "debug/AdaptiveAssoc.hh"
 #include "mem/cache/base.hh"
 #include "mem/cache/cache.hh"
 #include "mem/cache/cache_blk.hh"
@@ -19,206 +20,140 @@
 #include "mem/cache/tags/indexing_policies/base.hh"
 #include "mem/cache/tags/partitioning_policies/partition_manager.hh"
 #include "mem/packet.hh"
+#include "params/AdaptiveAssoc.hh"
 #include "sim/clocked_object.hh"
 #include "sim/cur_tick.hh"
 #include "sim/eventq.hh"
 
-#include "mem/cache/tags/base_set_assoc.hh"
-#include "params/AdaptiveAssoc.hh"
-#include "debug/AdaptiveAssoc.hh"
-
-
 namespace gem5 {
-
-  protected:
 
     class System;
     class AdaptiveAssoc : public BaseSetAssoc
-    {   
-
+    {
+      protected:
         // Parameters of Cache at time (100%)
         struct CacheFeatures {
 
-            double miss_rate;            // Miss rate %
-            uint64_t miss_count;         // Number of misses
-            uint64_t total_mem_access;   // Total mem access
-            double ipc;                  // Instructions per cycle
-            uint64_t prev_assoc;         // Previous associativity
+            // Miss rate %
+            double miss_rate;
 
-            CacheFeatures(
-                double _miss_rate = 0.0, 
-                uint64_t _miss_count = 0, 
-                uint64_t _total_memory_access = 0,
-                double _ipc = 0.0, 
-                uint64_t _prev_assoc = 16
-            );
+            // Number of misses
+            uint64_t miss_count;
+
+            // Total mem access
+            uint64_t total_mem_access;
+
+            // Instructions per cycle
+            double ipc;
+
+            // Previous associativity
+            unsigned prev_assoc;
+
+            CacheFeatures(double _miss_rate = 0.0, uint64_t _miss_count = 0,
+                          uint64_t _total_memory_access = 0, double _ipc = 0.0,
+                          unsigned _prev_assoc = 16);
         };
 
         // Decision Tree (100%)
         class DecisionTree
         {
         public:
-            uint64_t Predict(const CacheFeatures& f) const;
+          unsigned Predict(const CacheFeatures &f) const;
         };
 
         // Monitor that collects info about cache, ipc etc.
         class PerformanceMonitor : public ClockedObject
         {
-            EventFunctionWrapper nextDecisionEvent;
+            EventFunctionWrapper nextDecisionEndEvent;
             EventFunctionWrapper nextPeriodEndEvent;
 
-            uint64_t instructions;      // Number of instructions
-            uint64_t mem_accesses;      // Number of access to mem
-            uint64_t cache_misses;      // Number of cache misses
+            // Number of instructions
+            uint64_t instructions;
+            // Number of access to mem
+            uint64_t mem_accesses;
+            // Number of cache misses
+            uint64_t cache_misses;
 
-            AdaptiveAssoc* cache_tag;   // Pointer to cache
+            // Pointer to cache
+            AdaptiveAssoc *cache_tag;
 
-            Tick proc_time_clock;         // How much Tick in one Clock of processor
+            // How much Tick in one Clock of processor
+            Tick proc_time_clock;
+            // Tick when reconfig period start
             Tick period_start;
 
-            uint64_t reconfig_period;   // Time of one reconfiguration period
-            uint64_t decision_period;   // Time is spend to decision making period
+            // Time of one reconfiguration period
+            uint64_t reconfig_period;
+            // Time is spent to decision making period
+            uint64_t decision_period;
 
-            bool in_decision_phase;     // Is decision making period phase
+            // Last cache info
+            CacheFeatures features;
 
-            CacheFeatures features;    // Last cache info
-
-            void processNextDecisionEvent();
+            uint64_t executedInsts();
+            void processNextDecisionEndEvent();
             void processPeriodEndEvent();
 
-        public:
+            friend AdaptiveAssoc;
 
-            PerformanceMonitor(
-                AdaptiveAssoc* _cache_tag, 
-                uint64_t _reconfig_period = 30000000, 
-                Tick _proc_time_clock = 1000
-            );
+          public:
+            PerformanceMonitor(AdaptiveAssoc *_cache_tag,
+                               uint64_t _reconfig_period = 30000000,
+                               Tick _proc_time_clock = 1000);
 
             // setCpuClock
-            void setCpuClock(Tick tm) {
-                proc_time_clock = tm;
-            }
+            void setCpuClock(Tick tm);
 
             // Access to mem had happened
-            void onAccess(bool hit) {
-                mem_accesses++;
-                if (!hit)
-                    cache_misses++;
-            }
+            void onAccess(bool hit);
 
-            void startNewPeriod(Tick now) {
-                period_start = now;
-                instructions = 0;
-                mem_accesses = 0;
-                cache_misses = 0;
-                in_decision_phase = true;
-
-                if (nextDecisionEvent.scheduled()) deschedule(nextDecisionEvent);
-                schedule(nextDecisionEvent, now + decision_period);
-
-                if (nextPeriodEndEvent.scheduled()) deschedule(nextPeriodEndEvent);
-                schedule(nextPeriodEndEvent, now + reconfig_period);
-            }
-
-            /*bool isDecisionTime(Tick now) const {
-                if (!in_decision_phase)
-                    return false;
-                return (now - period_start) >= decision_period;
-            }
-
-            void endDecisionPhase(Tick now, uint64_t prev_assoc) {
-                uint64_t cycles = (now - period_start) / procTimeClock;
-                double ipc_val = (cycles > 0) ? (double)instructions / cycles : 0.0;
-
-                double miss_rate_pct = (mem_accesses > 0) ?
-                ((double)cache_misses / mem_accesses) * 100.0 : 0.0;
-
-                // Save last features
-                last_features = CacheFeatures(
-                    miss_rate_pct, cache_misses, mem_accesses, ipc_val, prev_assoc);
-                features_ready = true;
-
-                instructions = 0;
-                mem_accesses = 0;
-                cache_misses = 0;
-                in_decision_phase = false;  // Start of Stable period
-            }
-
-            // getFeatures
-            bool getFeatures(CacheFeatures& f) const {
-                if (!features_ready)
-                    return false;
-                f = last_features;
-                return true;
-            }
-
-            // Is Reconfiguration period ended
-            bool isPeriodEnd(Tick now) const {
-                return (now - period_start) >= reconfig_period;
-            }
-
-            // Start new period
-            void startNewPeriod(Tick now) {
-                period_start = now;
-                instructions = 0;
-                mem_accesses = 0;
-                cache_misses = 0;
-                in_decision_phase = true;
-                features_ready = false;
-
-                if (nextDecisionEvent.scheduled()) deschedule(nextDecisionEvent);
-                schedule(nextDecisionEvent, now + decision_period);
-
-                if (nextPeriodEndEvent.scheduled()) deschedule(nextPeriodEndEvent);
-                schedule(nextPeriodEndEvent, now + reconfig_period);
-            }
-
-            // Set null values
-            void reset() {
-                instructions = 0;
-                mem_accesses = 0;
-                cache_misses = 0;
-                features_ready = false;
-                in_decision_phase = true;
-            }
-
-            uint64_t getMemAccesses() const { return mem_accesses; }
-            uint64_t getCacheMisses() const { return cache_misses; }
-            double getMissRatePct() const {
-                return (mem_accesses > 0) ?
-                ((double)cache_misses / mem_accesses) * 100.0 : 0.0;
-            }*/
+            // Start new reconfiguration period
+            void startNewPeriod(Tick now);
         };
 
-        DecisionTree decision_tree;      // Decision Tree
-        PerformanceMonitor monitor;     // Monitor that does many work
-        BaseCache* parent_cache;        // Pointer to cache
-        std::vector<BaseCPU*> cpus;     // Vector of cores
+        // Decision Tree
+        DecisionTree decision_tree;
+        // Monitor that does many work
+        PerformanceMonitor monitor;
+        // Pointer to cache
+        BaseCache *parent_cache;
+        // Vector of cores
+        std::vector<BaseCPU *> cpus;
 
-        unsigned current_assoc;     // Current associativity
-        uint64_t reconfig_period;   // Time of reconfiguration period
+        // Current associativity
+        unsigned current_assoc;
+        // Time of reconfiguration period
+        uint64_t reconfig_period;
 
-  public:
+      public:
         AdaptiveAssoc(const AdaptiveAssocParams &p);
         virtual ~AdaptiveAssoc() {}
 
-        CacheBlk* accessBlock(const PacketPtr pkt, Cycles &lat) override;   // Access to cache
-        void reconfigureAssociativity(unsigned new_assoc);                  // Change associativity
-        unsigned getCurrentAssoc() const { return current_assoc; }          // Get current associativity
-        uint64_t getReconfigCount() const { return reconfig_count; }        // Get amount of reconfigurations
-        void init() override;                                               // Set things after all simobjects initialized
-        CacheBlk* findVictim(const CacheBlk::KeyType& key,
+        // Access to cache
+        CacheBlk *accessBlock(const PacketPtr pkt, Cycles &lat) override;
+
+        // Change associativity
+        void reconfigureAssociativity(unsigned new_assoc);
+
+        // Get current associativity
+        unsigned getCurrentAssoc() const;
+        // Get amount of reconfigurations
+        uint64_t getReconfigPeriod() const;
+        // Set things after all simobjects initialized
+        void init() override;
+        // Find victim
+        CacheBlk *findVictim(const CacheBlk::KeyType &key,
                              const std::size_t size,
-                             std::vector<CacheBlk*>& evict_blks,
-                             const uint64_t partition_id=0) override;       // Find victim
+                             std::vector<CacheBlk *> &evict_blks,
+                             const uint64_t partition_id = 0) override;
 
-  protected:
-
-        void writebackDirtyBlocks();    // Writeback to memory
-        void flushCache();              // Clear cache
+      protected:
+        // Writeback to memory
+        void writebackDirtyBlocks();
+        // Clear cache
+        void flushCache();
     };
 
 } // namespace gem5
 
 #endif // __MEM_CACHE_TAGS_ADAPTIVE_CACHE_ADAPTIVE_ASSOC_HH__
-
