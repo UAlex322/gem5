@@ -1,7 +1,8 @@
 Import("*")
 
-SimObject("AdaptiveAssoc.py", sim_objects=["AdaptiveAssoc"])
+SimObject("AdaptiveAssoc.py", sim_objects=["AdaptiveAssoc", "AdaptiveIndex"])
 
 Source("adaptive_assoc.cc")
+Source("adaptive_index.cc")
 
 DebugFlag("AdaptiveAssoc")

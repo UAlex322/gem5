@@ -15,6 +15,7 @@
 #include "mem/cache/cache_blk.hh"
 #include "mem/cache/replacement_policies/base.hh"
 #include "mem/cache/replacement_policies/replaceable_entry.hh"
+#include "mem/cache/tags/adaptive_cache/adaptive_index.hh"
 #include "mem/cache/tags/base.hh"
 #include "mem/cache/tags/base_set_assoc.hh"
 #include "mem/cache/tags/indexing_policies/base.hh"
@@ -114,9 +115,6 @@ class AdaptiveAssoc : public BaseSetAssoc
         void processPeriodEndEvent();
     };
 
-    EventFunctionWrapper nextDecisionEndEvent;
-    EventFunctionWrapper nextPeriodEndEvent;
-
     // Decision Tree
     DecisionTree decision_tree;
     // Monitor that does many work
@@ -130,6 +128,11 @@ class AdaptiveAssoc : public BaseSetAssoc
     unsigned current_assoc;
     // Time of reconfiguration period
     uint64_t reconfig_period;
+
+    EventFunctionWrapper nextDecisionEndEvent;
+    EventFunctionWrapper nextPeriodEndEvent;
+
+    AdaptiveIndex *adaptive_index;
 
   public:
     AdaptiveAssoc(const AdaptiveAssocParams &p);
@@ -147,10 +150,6 @@ class AdaptiveAssoc : public BaseSetAssoc
     uint64_t getReconfigPeriod() const;
     // Set things after all simobjects initialized
     void init() override;
-    // Find victim
-    CacheBlk *findVictim(const CacheBlk::KeyType &key, const std::size_t size,
-                         std::vector<CacheBlk *> &evict_blks,
-                         const uint64_t partition_id = 0) override;
 
   protected:
     // Writeback to memory

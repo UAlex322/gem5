@@ -166,9 +166,9 @@ AdaptiveAssoc::PerformanceMonitor::startNewPeriod(Tick now)
 
 AdaptiveAssoc::AdaptiveAssoc(const AdaptiveAssocParams &p)
     : BaseSetAssoc(p),
+      monitor(this, p.reconfig_period),
       parent_cache(p.parent_cache),
       cpus(p.cpus),
-      monitor(this, p.reconfig_period),
       current_assoc(16),
       reconfig_period(p.reconfig_period),
       nextDecisionEndEvent([this]() { monitor.processNextDecisionEndEvent(); },
@@ -193,6 +193,7 @@ AdaptiveAssoc::init()
         monitor.setCpuClock(cpu->clockPeriod());
         monitor.startNewPeriod(cpu->clockEdge());
     }
+    adaptive_index = static_cast<AdaptiveIndex *>(indexingPolicy);
 }
 
 CacheBlk *
@@ -212,6 +213,7 @@ AdaptiveAssoc::reconfigureAssociativity(unsigned new_assoc)
     writebackDirtyBlocks();
     flushCache();
     setWayAllocationMax(new_assoc);
+    adaptive_index->setAssociativity(new_assoc);
     current_assoc = new_assoc;
 }
 
@@ -259,30 +261,6 @@ AdaptiveAssoc::flushCache()
 
     DPRINTF(AdaptiveAssoc, "Cache flush completed. %d blocks invalidated.\n",
             invalidated);
-}
-
-CacheBlk *
-AdaptiveAssoc::findVictim(const CacheBlk::KeyType &key, const std::size_t size,
-                          std::vector<CacheBlk *> &evict_blks,
-                          const uint64_t partition_id)
-{
-    std::vector<ReplaceableEntry *> entries =
-        indexingPolicy->getPossibleEntries(key);
-    std::vector<ReplaceableEntry *> filtered;
-
-    for (auto *entry : entries) {
-        CacheBlk *blk = static_cast<CacheBlk *>(entry);
-        if (blk->getWay() < allocAssoc) {
-            filtered.push_back(entry);
-        }
-    }
-    CacheBlk *victim =
-        filtered.empty()
-            ? nullptr
-            : static_cast<CacheBlk *>(replacementPolicy->getVictim(filtered));
-
-    evict_blks.push_back(victim);
-    return victim;
 }
 
 } // namespace gem5
