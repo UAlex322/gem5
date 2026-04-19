@@ -1712,8 +1712,8 @@ def format VectorFloatSlideDownFormat(code, category, *flags) {{
 
 
 def format KuznechikFormat(code, category, *flags) {{
-    macroop_class_name = 'VectorArithMacroInst'
-    microop_class_name = 'VectorArithMicroInst'
+    macroop_class_name = 'KuznechikMacroInst'
+    microop_class_name = 'KuznechikMicroInst'
 
     iop = InstObjParams(
         name,

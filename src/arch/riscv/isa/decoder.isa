@@ -6495,6 +6495,9 @@ decode QUADRANT default Unknown::unknown() {
                 0x0: KuznechikFormat::kuznechik_enc({{
                     kuznechik_encrypt(Vd_vu, Vs1_vu, Vs2_vu);
                 }}, OPIVV, SimdMiscOp);
+                0x1: KuznechikFormat::kuznechik_dec({{
+                    kuznechik_decrypt(Vd_vu, Vs1_vu, Vs2_vu);
+                }}, OPIVV, SimdMiscOp);
             }
         }
     }
