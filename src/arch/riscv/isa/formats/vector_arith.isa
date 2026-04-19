@@ -1712,8 +1712,8 @@ def format VectorFloatSlideDownFormat(code, category, *flags) {{
 
 
 def format KuznechikFormat(code, category, *flags) {{
-    macroop_class_name = 'KuznechikMacroInst'
-    microop_class_name = 'KuznechikMicroInst'
+    macroop_class_name = 'VectorArithMacroInst'
+    microop_class_name = 'VectorArithMicroInst'
 
     iop = InstObjParams(
         name,
@@ -1778,11 +1778,11 @@ def format KuznechikFormat(code, category, *flags) {{
         flags)
 
     header_output = \
-        VectorIntMicroDeclare.subst(microiop) + \
-        VectorIntMacroDeclare.subst(iop)
+        KuznechikMicroDeclare.subst(microiop) + \
+        KuznechikMacroDeclare.subst(iop)
     decoder_output = \
-        VectorIntMicroConstructor.subst(microiop) + \
-        VectorIntMacroConstructor.subst(iop)
-    exec_output = VectorIntMicroExecute.subst(microiop)
-    decode_block = VectorIntDecodeBlock.subst(iop)
+        KuznechikMicroConstructor.subst(microiop) + \
+        KuznechikMacroConstructor.subst(iop)
+    exec_output = KuznechikMicroExecute.subst(microiop)
+    decode_block = KuznechikDecodeBlock.subst(iop)
 }};
