@@ -1,15 +1,15 @@
 #ifndef __DEV_MATRIX_ACCEL_HH__
 #define __DEV_MATRIX_ACCEL_HH__
 
-#include "dev/dma_device.hh"
-#include "dev/io_device.hh"
+#include "dev/dma_virt_device.hh"
 #include "params/MatrixAccel.hh"
+#include "sim/full_system.hh"
 #include "sim/system.hh"
 
 namespace gem5
 {
 
-class MatrixAccel : public BasicPioDevice
+class MatrixAccel : public DmaVirtDevice
 {
  public:
     enum class Status : uint32_t
@@ -28,15 +28,18 @@ class MatrixAccel : public BasicPioDevice
 
     MatrixAccel(const MatrixAccelParams& p);
 
-    Port& getPort(const std::string &name, PortID idx=InvalidPortID) override;
     void init() override;
-
     Tick read(PacketPtr pkt) override;
     Tick write(PacketPtr pkt) override;
 
- private:
+    TranslationGenPtr translate(Addr vaddr, Addr size) override;
+    AddrRangeList getAddrRanges() const override;
+
+  private:
     System *system;
-    DmaPort mem_port;
+    Addr pioAddr;
+    Addr pioSize;
+    Tick pioDelay;
 
     static constexpr uint32_t STATUS_OFFSET = 0;
     static constexpr uint32_t CONTROL_OFFSET = 4;
@@ -65,10 +68,7 @@ class MatrixAccel : public BasicPioDevice
     void on_done();
 
     EventFunctionWrapper fetch_A_event;
-    EventFunctionWrapper fetch_B_event;
-    EventFunctionWrapper compute_event;
     EventFunctionWrapper write_C_event;
-    EventFunctionWrapper on_done_event;
 
     template<typename T>
     void matrix_mult(uint8_t* raw_a, uint8_t* raw_b,

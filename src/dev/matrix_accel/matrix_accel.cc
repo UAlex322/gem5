@@ -8,29 +8,21 @@
 namespace gem5
 {
 
-MatrixAccel::MatrixAccel(const MatrixAccelParams& p)
-: BasicPioDevice(p, p.pio_size),
-  system(p.system),
-  mem_port(this, system, 0, 0),
-  fetch_A_event([this]{fetch_A();}, name()),
-  fetch_B_event([this]{fetch_B();}, name()),
-  compute_event([this]{compute();}, name()),
-  write_C_event([this]{write_C();}, name()),
-  on_done_event([this]{on_done();}, name()) {}
+MatrixAccel::MatrixAccel(const MatrixAccelParams &p)
+    : DmaVirtDevice(p),
+      system(p.system),
+      pioAddr(p.pio_addr),
+      pioSize(p.pio_size),
+      pioDelay(p.pio_latency),
+      fetch_A_event([this] { fetch_A(); }, name()),
+      write_C_event([this] { write_C(); }, name())
+{}
 
-Port& MatrixAccel::getPort(const std::string &name, PortID idx) {
-    if (name == "mem_port") {
-        return mem_port;
-    } else {
-        return BasicPioDevice::getPort(name, idx);
-    }
-}
-
-void MatrixAccel::init() {
-    panic_if(!mem_port.isConnected(),
-             "DMA port of %s is not connected!", name());
+void
+MatrixAccel::init()
+{
     std::cout << "MatrixAccel::init" << std::endl;
-    BasicPioDevice::init();
+    DmaVirtDevice::init();
 }
 
 Tick MatrixAccel::read(PacketPtr pkt) {
@@ -76,7 +68,7 @@ Tick MatrixAccel::write(PacketPtr pkt) {
             << "MatrixAccel::write: START command received, launching fetch_A"
             << std::endl;
             status = Status::BUSY;
-            fetch_A();
+            schedule(fetch_A_event, curTick());
         }
 
         std::cout << "MatrixAccel::write: writing control="
@@ -121,10 +113,26 @@ Tick MatrixAccel::write(PacketPtr pkt) {
     return pioDelay;
 }
 
+TranslationGenPtr
+MatrixAccel::translate(Addr vaddr, Addr size)
+{
+    if (!FullSystem) {
+        auto process = system->threads[0]->getProcessPtr();
+        return process->pTable->translateRange(vaddr, size);
+    }
+    // FS: адрес физический, identity mapping
+    // TODO: реализовать когда будет доступ к кластеру
+    panic("MatrixAccel: FS mode not yet supported");
+}
+
+AddrRangeList
+MatrixAccel::getAddrRanges() const
+{
+    return {RangeSize(pioAddr, pioSize)};
+}
+
 void MatrixAccel::fetch_A() {
     std::cout << "MatrixAccel::fetch_A" << std::endl;
-    panic_if(mem_port.dmaPending(), "DMA already pending in %s", name());
-
     std::cout << "MatrixAccel::fetch_A: start fetch from: "
     << addr_a << std::endl;
 
@@ -140,21 +148,13 @@ void MatrixAccel::fetch_A() {
 
     size_t total_bytes = block_size * block_size * elem_size;
     buf_a.resize(total_bytes);
-    mem_port.dmaAction(
-        MemCmd::ReadReq,
-        addr_a,
-        total_bytes,
-        &fetch_B_event,
-        buf_a.data(),
-        0,
-        Request::UNCACHEABLE
-    );
+    auto *cb =
+        new DmaVirtCallback<uint64_t>([this](const uint64_t &) { fetch_B(); });
+    dmaReadVirt(addr_a, total_bytes, cb, buf_a.data());
 }
 
 void MatrixAccel::fetch_B() {
     std::cout << "MatrixAccel::fetch_B" << std::endl;
-    panic_if(mem_port.dmaPending(), "DMA already pending in %s", name());
-
     std::cout << "MatrixAccel::fetch_B: start fetch from: "
     << addr_b << std::endl;
 
@@ -170,15 +170,9 @@ void MatrixAccel::fetch_B() {
 
     size_t total_bytes = block_size * block_size * elem_size;
     buf_b.resize(total_bytes);
-    mem_port.dmaAction(
-        MemCmd::ReadReq,
-        addr_b,
-        total_bytes,
-        &compute_event,
-        buf_b.data(),
-        0,
-        Request::UNCACHEABLE
-    );
+    auto *cb =
+        new DmaVirtCallback<uint64_t>([this](const uint64_t &) { compute(); });
+    dmaReadVirt(addr_b, total_bytes, cb, buf_b.data());
 }
 
 void MatrixAccel::compute() {
@@ -214,8 +208,6 @@ void MatrixAccel::compute() {
 
 void MatrixAccel::write_C() {
     std::cout << "MatrixAccel::write_C" << std::endl;
-    panic_if(mem_port.dmaPending(), "DMA already pending in %s", name());
-
     std::cout << "MatrixAccel::write_C: start write to: "
     << addr_c << std::endl;
 
@@ -230,15 +222,9 @@ void MatrixAccel::write_C() {
     }
 
     size_t total_bytes = block_size * block_size * elem_size;
-    mem_port.dmaAction(
-        MemCmd::WriteReq,
-        addr_c,
-        total_bytes,
-        &on_done_event,
-        buf_c.data(),
-        0,
-        Request::UNCACHEABLE
-    );
+    auto *cb =
+        new DmaVirtCallback<uint64_t>([this](const uint64_t &) { on_done(); });
+    dmaWriteVirt(addr_c, total_bytes, cb, buf_c.data());
 }
 
 void MatrixAccel::on_done() {
