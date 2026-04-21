@@ -1,12 +1,16 @@
 #include "dev/matrix_accel/matrix_accel.hh"
 
 #include <iostream>
+#include "arch/riscv/faults.hh"
+#include "cpu/base.hh"
 #include "mem/packet_access.hh"
 #include "mem/page_table.hh"
 #include "sim/process.hh"
 
 namespace gem5
 {
+
+using namespace RiscvISA;
 
 MatrixAccel::MatrixAccel(const MatrixAccelParams &p)
     : DmaVirtDevice(p),
@@ -230,6 +234,9 @@ void MatrixAccel::write_C() {
 void MatrixAccel::on_done() {
     std::cout << "MatrixAccel::on_done: result is done" << std::endl;
     status = Status::DONE;
+    auto tc = system->threads[0];
+    tc->getCpuPtr()->postInterrupt(tc->threadId(),
+                                   ExceptionCode::INT_EXT_MACHINE, 0);
 }
 
 } // namespace gem5
