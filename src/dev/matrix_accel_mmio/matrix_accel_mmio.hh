@@ -38,7 +38,7 @@ class MatrixAccelMMIO : public BasicPioDevice
     static constexpr uint32_t MAX_BLOCK_SIZE = 64;
     static constexpr uint32_t MAX_ELEM_SIZE = sizeof(double);
     static constexpr uint32_t MAX_BUF_SIZE = MAX_BLOCK_SIZE * MAX_BLOCK_SIZE * MAX_ELEM_SIZE;
-    
+
     static constexpr uint32_t BUF_A_OFFSET = 16;
     static constexpr uint32_t BUF_B_OFFSET = BUF_A_OFFSET + MAX_BUF_SIZE;
     static constexpr uint32_t BUF_C_OFFSET = BUF_B_OFFSET + MAX_BUF_SIZE;
@@ -53,20 +53,24 @@ class MatrixAccelMMIO : public BasicPioDevice
     uint8_t buf_c[MAX_BUF_SIZE]{};
 
     void compute();
+    void on_done();
 
     EventFunctionWrapper compute_event;
+    EventFunctionWrapper on_done_event;
 
-    template<typename T>
-    void matrix_mult(uint8_t* raw_a, uint8_t* raw_b,
-         uint8_t* raw_c, size_t n) {
-        T* a = reinterpret_cast<T*>(raw_a);
-        T* b = reinterpret_cast<T*>(raw_b);
-        T* c = reinterpret_cast<T*>(raw_c);
+    template <typename T>
+    void
+    matrix_mult()
+    {
+        T *a = reinterpret_cast<T *>(buf_a);
+        T *b = reinterpret_cast<T *>(buf_b);
+        T *c = reinterpret_cast<T *>(buf_c);
 
-        for (size_t i = 0; i < n; i++) {
-            for (size_t j = 0; j < n; j++) {
-                for (size_t k = 0; k < n; k++) {
-                    c[i * n + j] += a[i * n + k] * b[k * n + j];
+        for (size_t i = 0; i < block_size; i++) {
+            for (size_t j = 0; j < block_size; j++) {
+                for (size_t k = 0; k < block_size; k++) {
+                    c[i * block_size + j] +=
+                        a[i * block_size + k] * b[k * block_size + j];
                 }
             }
         }
@@ -75,4 +79,4 @@ class MatrixAccelMMIO : public BasicPioDevice
 
 } // namespace gem5
 
-#endif // __DEV_MATRIX_ACCEL_HH__
+#endif // __DEV_MATRIX_ACCEL_MMIO_HH__
