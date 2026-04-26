@@ -2,3 +2,4 @@ Import('*')
 
 SimObject('MatrixAccel.py', sim_objects=['MatrixAccel'])
 Source('matrix_accel.cc')
+DebugFlag('MatrixAccel')

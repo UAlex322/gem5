@@ -1,8 +1,8 @@
 #include "dev/matrix_accel/matrix_accel.hh"
 
-#include <iostream>
 #include "arch/riscv/faults.hh"
 #include "cpu/base.hh"
+#include "debug/MatrixAccel.hh"
 #include "mem/packet_access.hh"
 #include "mem/page_table.hh"
 #include "sim/process.hh"
@@ -25,14 +25,14 @@ MatrixAccel::MatrixAccel(const MatrixAccelParams &p)
 void
 MatrixAccel::init()
 {
-    std::cout << "MatrixAccel::init" << std::endl;
+    DPRINTF(MatrixAccel, "init\n");
     DmaVirtDevice::init();
 }
 
 Tick MatrixAccel::read(PacketPtr pkt) {
     Addr offset = pkt->getAddr() - pioAddr;
 
-    std::cout << "MatrixAccel::read: reading offset " << offset << std::endl;
+    DPRINTF(MatrixAccel, "read: offset %d\n", offset);
     panic_if(offset >= pioSize, "out of bounds read in %s", name());
 
     uint32_t read_value = 0;
@@ -54,7 +54,7 @@ Tick MatrixAccel::read(PacketPtr pkt) {
 Tick MatrixAccel::write(PacketPtr pkt) {
     Addr offset = pkt->getAddr() - pioAddr;
 
-    std::cout << "MatrixAccel::write: writing offset " << offset << std::endl;
+    DPRINTF(MatrixAccel, "write: offset %d\n", offset);
     panic_if(offset >= pioSize, "out of bounds write in %s", name());
 
     uint32_t write_value = 0;
@@ -68,46 +68,36 @@ Tick MatrixAccel::write(PacketPtr pkt) {
             panic_if(addr_a == 0, "addr_a not set in %s", name());
             panic_if(addr_b == 0, "addr_b not set in %s", name());
             panic_if(addr_c == 0, "addr_c not set in %s", name());
-            std::cout
-            << "MatrixAccel::write: START command received, launching fetch_A"
-            << std::endl;
+            DPRINTF(MatrixAccel, "write: START received, launching fetch_A\n");
             status = Status::BUSY;
             schedule(fetch_A_event, curTick());
         }
 
-        std::cout << "MatrixAccel::write: writing control="
-        << control << std::endl;
+        DPRINTF(MatrixAccel, "write: control=%d\n", control);
     } else if (offset == ADDR_A_OFFSET) {
         write_ptr = pkt->getLE<uint64_t>();
         addr_a = write_ptr;
-        std::cout << "MatrixAccel::write: writing addr_a="
-        << addr_a << std::endl;
+        DPRINTF(MatrixAccel, "write: addr_a=0x%x\n", addr_a);
     } else if (offset == ADDR_B_OFFSET) {
         write_ptr = pkt->getLE<uint64_t>();
         addr_b = write_ptr;
-        std::cout << "MatrixAccel::write: writing addr_b="
-        << addr_b << std::endl;
+        DPRINTF(MatrixAccel, "write: addr_b=0x%x\n", addr_b);
     } else if (offset == ADDR_C_OFFSET) {
         write_ptr = pkt->getLE<uint64_t>();
         addr_c = write_ptr;
-        std::cout << "MatrixAccel::write: writing addr_c="
-        << addr_c << std::endl;
+        DPRINTF(MatrixAccel, "write: addr_c=0x%x\n", addr_c);
     } else if (offset == BLOCK_SIZE_OFFSET) {
         write_value = pkt->getLE<uint32_t>();
         panic_if(write_value != 16 && write_value != 32 && write_value != 64,
                  "invalid block_size %d in %s", write_value, name());
         block_size = write_value;
-        std::cout << "MatrixAccel::write: writing block_size="
-        << block_size << std::endl;
+        DPRINTF(MatrixAccel, "write: block_size=%d\n", block_size);
     } else if (offset == DATA_TYPE_OFFSET) {
         write_value = pkt->getLE<uint32_t>();
         panic_if(write_value > 2, "invalid data_type %d in %s",
              write_value, name());
         data_type = static_cast<DataType>(write_value);
-        const char* type_name = (data_type == DataType::INT) ? "int" :
-                        (data_type == DataType::FLOAT) ? "float" : "double";
-        std::cout << "MatrixAccel::write: data_type="
-              << write_value << " (" << type_name << ")" << std::endl;;
+        DPRINTF(MatrixAccel, "write: data_type=%d\n", write_value);
     } else {
         panic("MatrixAccel::write: unknown offset %d in %s", offset, name());
     }
@@ -136,9 +126,7 @@ MatrixAccel::getAddrRanges() const
 }
 
 void MatrixAccel::fetch_A() {
-    std::cout << "MatrixAccel::fetch_A" << std::endl;
-    std::cout << "MatrixAccel::fetch_A: start fetch from: "
-    << addr_a << std::endl;
+    DPRINTF(MatrixAccel, "fetch_A: reading from 0x%x\n", addr_a);
 
     size_t elem_size = 0;
 
@@ -158,9 +146,7 @@ void MatrixAccel::fetch_A() {
 }
 
 void MatrixAccel::fetch_B() {
-    std::cout << "MatrixAccel::fetch_B" << std::endl;
-    std::cout << "MatrixAccel::fetch_B: start fetch from: "
-    << addr_b << std::endl;
+    DPRINTF(MatrixAccel, "fetch_B: reading from 0x%x\n", addr_b);
 
     size_t elem_size = 0;
 
@@ -180,8 +166,7 @@ void MatrixAccel::fetch_B() {
 }
 
 void MatrixAccel::compute() {
-    std::cout << "MatrixAccel::compute: start"
-    << std::endl;
+    DPRINTF(MatrixAccel, "compute: start\n");
 
     size_t elem_size = 0;
 
@@ -211,9 +196,7 @@ void MatrixAccel::compute() {
 }
 
 void MatrixAccel::write_C() {
-    std::cout << "MatrixAccel::write_C" << std::endl;
-    std::cout << "MatrixAccel::write_C: start write to: "
-    << addr_c << std::endl;
+    DPRINTF(MatrixAccel, "write_C: writing to 0x%x\n", addr_c);
 
     size_t elem_size = 0;
 
@@ -232,11 +215,13 @@ void MatrixAccel::write_C() {
 }
 
 void MatrixAccel::on_done() {
-    std::cout << "MatrixAccel::on_done: result is done" << std::endl;
+    DPRINTF(MatrixAccel, "on_done: computation complete\n");
     status = Status::DONE;
-    auto tc = system->threads[0];
-    tc->getCpuPtr()->postInterrupt(tc->threadId(),
-                                   ExceptionCode::INT_EXT_MACHINE, 0);
+    if (FullSystem) {
+        auto tc = system->threads[0];
+        tc->getCpuPtr()->postInterrupt(tc->threadId(),
+                                       ExceptionCode::INT_EXT_MACHINE, 0);
+    }
 }
 
 } // namespace gem5
