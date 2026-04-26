@@ -31,12 +31,13 @@ run_sim() {
         $GEM5 --outdir="$outdir" $CONFIG \
             --cpu-type "$cpu" \
             --compute-latency "$latency" \
+            --num-accels 1 \
             --binary "$binary" \
             > /dev/null 2>&1
     else
         $GEM5 --outdir="$outdir" $CONFIG \
             --cpu-type "$cpu" \
-            --no-accel \
+            --num-accels 0 \
             --binary "$binary" \
             > /dev/null 2>&1
     fi

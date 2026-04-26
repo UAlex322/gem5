@@ -37,6 +37,18 @@ for BLOCK_SIZE in 16 32 64; do
 done
 
 echo ""
+echo "=== Building bench_multi_accel ==="
+
+for NUM_ACCELS in 1 2 4; do
+    NAME="bench_multi_n${NUM_ACCELS}_b64_float"
+    echo "Building $NAME..."
+    $COMPILER $FLAGS \
+        -DMATRIX_N=64 -DBLOCK_SIZE=16 -DNUM_ACCELS=$NUM_ACCELS \
+        -o $BIN_DIR/$NAME \
+        $SRC_DIR/bench_multi_accel.c
+done
+
+echo ""
 echo "=== Building legacy tests ==="
 for PROGRAM in simple_mult_test accel_test accel_mmio_mult_test; do
     if [ -f "$SRC_DIR/${PROGRAM}.c" ]; then

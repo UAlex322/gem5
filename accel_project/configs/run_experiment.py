@@ -25,9 +25,11 @@ parser.add_argument(
     "--binary", required=True, help="Path to the binary to run"
 )
 parser.add_argument(
-    "--no-accel",
-    action="store_true",
-    help="Run without accelerator (CPU-only baseline)",
+    "--num-accels",
+    type=int,
+    choices=[0, 1, 2, 4],
+    default=1,
+    help="Number of accelerators (0 = CPU-only baseline)",
 )
 args = parser.parse_args()
 
@@ -51,20 +53,24 @@ board = SimpleBoard(
     cache_hierarchy=cache_hierarchy,
 )
 
-if not args.no_accel:
-    board.matrix_accel = MatrixAccel(
-        pio_addr=0x50000000,
+ACCEL_BASE = 0x50000000
+ACCEL_STEP = 0x01000000
+
+for i in range(args.num_accels):
+    accel = MatrixAccel(
+        pio_addr=ACCEL_BASE + i * ACCEL_STEP,
         pio_size=0x400,
         compute_latency=args.compute_latency,
     )
-    board.matrix_accel.pio = cache_hierarchy.membus.mem_side_ports
-    board.matrix_accel.dma = cache_hierarchy.membus.cpu_side_ports
+    accel.pio = cache_hierarchy.membus.mem_side_ports
+    accel.dma = cache_hierarchy.membus.cpu_side_ports
+    setattr(board, f"matrix_accel_{i}", accel)
 
 board.set_se_binary_workload(BinaryResource(local_path=args.binary))
 
 print(
     f"--- cpu={args.cpu_type} compute_latency={args.compute_latency} "
-    f"accel={'no' if args.no_accel else 'yes'} binary={args.binary} ---"
+    f"num_accels={args.num_accels} binary={args.binary} ---"
 )
 
 simulator = Simulator(board=board)
