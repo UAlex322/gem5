@@ -18,6 +18,7 @@ MatrixAccel::MatrixAccel(const MatrixAccelParams &p)
       pioAddr(p.pio_addr),
       pioSize(p.pio_size),
       pioDelay(p.pio_latency),
+      computeLatency(p.compute_latency),
       fetch_A_event([this] { fetch_A(); }, name()),
       write_C_event([this] { write_C(); }, name())
 {}
@@ -192,7 +193,7 @@ void MatrixAccel::compute() {
          buf_c.data(), block_size);
     }
 
-    schedule(write_C_event, curTick() + cyclesToTicks(Cycles(500)));
+    schedule(write_C_event, curTick() + cyclesToTicks(computeLatency));
 }
 
 void MatrixAccel::write_C() {

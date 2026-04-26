@@ -11,3 +11,4 @@ class MatrixAccel(DmaVirtDevice):
     pio_addr = Param.Addr("Device Address")
     pio_size = Param.Addr(1024, "Size of address range")
     pio_latency = Param.Latency("100ns", "Programmed IO latency")
+    compute_latency = Param.Cycles(500, "Compute latency in cycles")

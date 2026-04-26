@@ -40,6 +40,7 @@ class MatrixAccel : public DmaVirtDevice
     Addr pioAddr;
     Addr pioSize;
     Tick pioDelay;
+    Cycles computeLatency;
 
     static constexpr uint32_t STATUS_OFFSET = 0;
     static constexpr uint32_t CONTROL_OFFSET = 4;
