@@ -178,6 +178,16 @@ let {{
             code += f'template class {class_name}<{type_name}{size}_t>;\n'
         return code
 
+    def declareKuznArithTemplate(
+        class_name, type_name='uint', min_size=8, max_size=8):
+        sizes = [8]
+        code = ''
+        for size in sizes:
+            if size < min_size or size > max_size:
+                continue
+            code += f'template class {class_name}<{type_name}{size}_t>;\n'
+        return code
+
     def declareGatherTemplate(class_name, index_type):
         sizes = [8, 16, 32, 64]
         code = ''
@@ -1720,7 +1730,7 @@ def format KuznechikFormat(code, category, *flags) {{
         Name,
         macroop_class_name,
         {'code': code,
-         'declare_varith_template': declareVArithTemplate(Name)},
+         'declare_varith_template': declareKuznArithTemplate(Name)},
         flags
     )
     inst_name, inst_suffix = name.split("_", maxsplit=1)
@@ -1774,7 +1784,7 @@ def format KuznechikFormat(code, category, *flags) {{
          'set_vlenb' : set_vlenb,
          'vm_decl_rd': vm_decl_rd,
          'copy_old_vd': copyOldVd(old_vd_idx),
-         'declare_varith_template': declareVArithTemplate(Name + "Micro")},
+         'declare_varith_template': declareKuznArithTemplate(Name + "Micro")},
         flags)
 
     header_output = \

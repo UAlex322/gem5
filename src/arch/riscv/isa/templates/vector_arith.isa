@@ -2693,7 +2693,7 @@ Fault
 
 def template KuznechikMacroDeclare {{
 
-template<uint8_t*>
+template<uint8_t>
 class %(class_name)s : public %(base_class)s {
 private:
     %(reg_idx_arr_decl)s;
@@ -2706,8 +2706,8 @@ public:
 
 def template KuznechikMacroConstructor {{
 
-template<uint8_t*>
-%(class_name)s<uint8_t*>::%(class_name)s(ExtMachInst _machInst, uint32_t _elen,
+template<uint8_t>
+%(class_name)s<uint8_t>::%(class_name)s(ExtMachInst _machInst, uint32_t _elen,
                                          uint32_t _vlen)
     : %(base_class)s("%(mnemonic)s", _machInst, %(op_class)s, _elen, _vlen)
 {
@@ -2724,7 +2724,7 @@ template<uint8_t*>
         this->microops.push_back(microop);
     }
     for (int i = 0; i < num_microops && micro_vl > 0; ++i) {
-        microop = new %(class_name)sMicro<uint8_t*>(_machInst, micro_vl, i,
+        microop = new %(class_name)sMicro<uint8_t>(_machInst, micro_vl, i,
                                                     _elen, _vlen);
         microop->setDelayedCommit();
         this->microops.push_back(microop);
@@ -2741,7 +2741,7 @@ template<uint8_t*>
 
 def template KuznechikMicroDeclare {{
 
-template<uint8_t*>
+template<uint8_t>
 class %(class_name)s : public %(base_class)s
 {
 private:
@@ -2761,8 +2761,8 @@ public:
 
 def template KuznechikMicroConstructor {{
 
-template<uint8_t*>
-%(class_name)s<uint8_t*>::%(class_name)s(ExtMachInst _machInst,
+template<uint8_t>
+%(class_name)s<uint8_t>::%(class_name)s(ExtMachInst _machInst,
                                          uint32_t _microVl, uint32_t _microIdx,
                                          uint32_t _elen, uint32_t _vlen)
     : %(base_class)s("%(mnemonic)s", _machInst, %(op_class)s, _microVl,
@@ -2782,12 +2782,12 @@ template<uint8_t*>
 
 def template KuznechikMicroExecute {{
 
-template <uint8_t*>
+template <uint8_t>
 Fault
-%(class_name)s<uint8_t*>::execute(ExecContext* xc,
+%(class_name)s<uint8_t>::execute(ExecContext* xc,
                                   trace::InstRecord* traceData) const
 {
-    [[maybe_unused]] constexpr size_t sew = sizeof(uint8_t*) * 8;
+    [[maybe_unused]] constexpr size_t sew = sizeof(uint8_t) * 8;
 
     bool set_dirty = true;
     bool check_vill = true;
@@ -2811,6 +2811,6 @@ Fault
 
 def template KuznechikDecodeBlock {{
 
-return new %(class_name)s<uint8_t*>(machInst, elen, vlen);
+return new %(class_name)s<uint8_t>(machInst, elen, vlen);
 
 }};
