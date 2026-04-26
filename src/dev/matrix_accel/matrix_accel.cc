@@ -180,17 +180,14 @@ void MatrixAccel::compute() {
     }
 
     size_t total_bytes = block_size * block_size * elem_size;
-    buf_c.resize(total_bytes);
+    buf_c.assign(total_bytes, 0);
 
     if (data_type == DataType::INT) {
-        matrix_mult<int>(buf_a.data(), buf_b.data(),
-         buf_c.data(), block_size);
+        matrix_mult<int>();
     } else if (data_type == DataType::FLOAT) {
-        matrix_mult<float>(buf_a.data(), buf_b.data(),
-         buf_c.data(), block_size);
+        matrix_mult<float>();
     } else if (data_type == DataType::DOUBLE) {
-        matrix_mult<double>(buf_a.data(), buf_b.data(),
-         buf_c.data(), block_size);
+        matrix_mult<double>();
     }
 
     schedule(write_C_event, curTick() + cyclesToTicks(computeLatency));

@@ -71,12 +71,14 @@ class MatrixAccel : public DmaVirtDevice
     EventFunctionWrapper fetch_A_event;
     EventFunctionWrapper write_C_event;
 
-    template<typename T>
-    void matrix_mult(uint8_t* raw_a, uint8_t* raw_b,
-         uint8_t* raw_c, size_t n) {
-        T* a = reinterpret_cast<T*>(raw_a);
-        T* b = reinterpret_cast<T*>(raw_b);
-        T* c = reinterpret_cast<T*>(raw_c);
+    template <typename T>
+    void
+    matrix_mult()
+    {
+        T *a = reinterpret_cast<T *>(buf_a.data());
+        T *b = reinterpret_cast<T *>(buf_b.data());
+        T *c = reinterpret_cast<T *>(buf_c.data());
+        size_t n = block_size;
 
         for (size_t i = 0; i < n; i++) {
             for (size_t j = 0; j < n; j++) {
