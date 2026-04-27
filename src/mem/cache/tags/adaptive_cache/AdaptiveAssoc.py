@@ -1,7 +1,7 @@
 from m5.objects import (
-    BaseCache,
     BaseCPU,
     BaseSetAssoc,
+    Cache,
     TaggedIndexingPolicy,
 )
 from m5.params import *
@@ -13,9 +13,8 @@ class AdaptiveIndex(TaggedIndexingPolicy):
     cxx_header = "mem/cache/tags/adaptive_cache/adaptive_index.hh"
     cxx_class = "gem5::AdaptiveIndex"
 
-    size = Param.MemorySize("Cache size")
-    assoc = Param.Unsigned(16, "Initial associativity")
-    block_size = Param.Unsigned(64, "Block size")
+    size = Param.MemorySize(Parent.size, "Cache size")
+    block_size = Param.Int(Parent.block_size, "Block size")
 
 
 class AdaptiveAssoc(BaseSetAssoc):
@@ -26,13 +25,11 @@ class AdaptiveAssoc(BaseSetAssoc):
     # Get time of reconfiguration period
     reconfig_period = Param.Int(30000000, "reconfiguration period")
 
-    # Get parent cache
-    parent_cache = Param.BaseCache(Parent.any, "pointer to cache")
-
     # Get cores
     cpus = VectorParam.BaseCPU([], "std::vector of cpu cores")
 
-    # Get indexing policy
-    indexing_policy = Param.TaggedIndexingPolicy(
-        AdaptiveIndex(), "Indexing policy"
-    )
+
+class AdaptiveCache(Cache):
+    type = "AdaptiveCache"
+    cxx_header = "mem/cache/tags/adaptive_cache/adaptive_cache.hh"
+    cxx_class = "gem5::AdaptiveCache"

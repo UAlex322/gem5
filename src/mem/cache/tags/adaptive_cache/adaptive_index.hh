@@ -14,7 +14,7 @@ class AdaptiveIndex : public TaggedIndexingPolicy
 {
   protected:
     const uint64_t size;
-    const unsigned blockSize;
+    const uint64_t blockSize;
     const uint64_t numEntries;
 
     unsigned currentAssoc;

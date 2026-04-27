@@ -6,10 +6,10 @@ namespace gem5
 {
 
 AdaptiveIndex::AdaptiveIndex(const AdaptiveIndexParams &p)
-    : TaggedIndexingPolicy(p, 0, 0),
+    : TaggedIndexingPolicy(p, p.size / p.block_size, floorLog2(p.block_size)),
       size(p.size),
       blockSize(p.block_size),
-      numEntries(size / blockSize),
+      numEntries(p.size / p.block_size),
       currentAssoc(p.assoc)
 {
     rebuildStructure(currentAssoc);

@@ -150,12 +150,19 @@ class AdaptiveAssoc : public BaseSetAssoc
     uint64_t getReconfigPeriod() const;
     // Set things after all simobjects initialized
     void init() override;
+    void
+    setCache(BaseCache *cache)
+    {
+        parent_cache = cache;
+    }
 
   protected:
     // Writeback to memory
     void writebackDirtyBlocks();
     // Clear cache
     void flushCache();
+    // Print state
+    void toDPRINTF();
 };
 
 } // namespace gem5
