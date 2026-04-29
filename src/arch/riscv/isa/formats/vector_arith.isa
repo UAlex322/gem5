@@ -179,13 +179,9 @@ let {{
         return code
 
     def declareKuznArithTemplate(
-        class_name, type_name='uint', min_size=8, max_size=8):
-        sizes = [8]
+        class_name):
         code = ''
-        for size in sizes:
-            if size < min_size or size > max_size:
-                continue
-            code += f'template class {class_name}<{type_name}{size}_t>;\n'
+        code += f'template class {class_name}<uint8_t>;\n'
         return code
 
     def declareGatherTemplate(class_name, index_type):
