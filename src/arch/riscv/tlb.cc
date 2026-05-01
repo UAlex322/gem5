@@ -77,10 +77,14 @@ buildKey(Addr vpn, uint16_t asid)
     return (static_cast<Addr>(asid) << 48) | vpn;
 }
 
-TLB::TLB(const Params &p) :
-    BaseTLB(p), size(p.size), tlb(size),
-    lruSeq(0), stats(this), pma(p.pma_checker),
-    pmp(p.pmp)
+TLB::TLB(const Params &p)
+    : BaseTLB(p),
+      size(p.size),
+      tlb(size),
+      lruSeq(0),
+      stats(this),
+      pma(p.pma_checker),
+      pmp(p.pmp)
 {
     for (size_t x = 0; x < size; x++) {
         tlb[x].trieHandle = NULL;
@@ -105,8 +109,9 @@ TLB::evictLRU()
 
     size_t lru = 0;
     for (size_t i = 1; i < size; i++) {
-        if (tlb[i].lruSeq < tlb[lru].lruSeq)
+        if (tlb[i].lruSeq < tlb[lru].lruSeq) {
             lru = i;
+        }
     }
 
     remove(lru);
@@ -117,32 +122,36 @@ TLB::lookup(Addr vpn, uint16_t asid, BaseMMU::Mode mode, bool hidden)
 {
     TlbEntry *entry = trie.lookup(buildKey(vpn, asid));
 
-    DPRINTF(TLBVerbose, "lookup(vpn=%#x, asid=%#x, key=%#x): "
-                        "%s ppn=%#x (%#x) %s\n",
+    DPRINTF(TLBVerbose,
+            "lookup(vpn=%#x, asid=%#x, key=%#x): "
+            "%s ppn=%#x (%#x) %s\n",
             vpn, asid, buildKey(vpn, asid), entry ? "hit" : "miss",
             entry ? entry->paddr : 0, entry ? entry->size() : 0,
             hidden ? "hidden" : "");
 
     if (!hidden) {
-        if (entry)
+        if (entry) {
             entry->lruSeq = nextSeq();
+        }
 
-        if (mode == BaseMMU::Write)
+        if (mode == BaseMMU::Write) {
             stats.writeAccesses++;
-        else
+        } else {
             stats.readAccesses++;
+        }
 
         if (!entry) {
-            if (mode == BaseMMU::Write)
+            if (mode == BaseMMU::Write) {
                 stats.writeMisses++;
-            else
+            } else {
                 stats.readMisses++;
-        }
-        else {
-            if (mode == BaseMMU::Write)
+            }
+        } else {
+            if (mode == BaseMMU::Write) {
                 stats.writeHits++;
-            else
+            } else {
                 stats.readHits++;
+            }
         }
     }
 
@@ -152,10 +161,11 @@ TLB::lookup(Addr vpn, uint16_t asid, BaseMMU::Mode mode, bool hidden)
 TlbEntry *
 TLB::insert(Addr vpn, const TlbEntry &entry)
 {
-    DPRINTF(TLB, "insert(vpn=%#x, asid=%#x, key=%#x): "
-                 "vaddr=%#x paddr=%#x pte=%#x size=%#x\n",
-        vpn, entry.asid, buildKey(vpn, entry.asid), entry.vaddr, entry.paddr,
-        entry.pte, entry.size());
+    DPRINTF(TLB,
+            "insert(vpn=%#x, asid=%#x, key=%#x): "
+            "vaddr=%#x paddr=%#x pte=%#x size=%#x\n",
+            vpn, entry.asid, buildKey(vpn, entry.asid), entry.vaddr,
+            entry.paddr, entry.pte, entry.size());
 
     // If somebody beat us to it, just use that existing entry.
     TlbEntry *newEntry = lookup(vpn, entry.asid, BaseMMU::Read, true);
@@ -168,8 +178,9 @@ TLB::insert(Addr vpn, const TlbEntry &entry)
         return newEntry;
     }
 
-    if (freeList.empty())
+    if (freeList.empty()) {
         evictLRU();
+    }
 
     newEntry = freeList.front();
     freeList.pop_front();
@@ -178,14 +189,14 @@ TLB::insert(Addr vpn, const TlbEntry &entry)
     *newEntry = entry;
     newEntry->lruSeq = nextSeq();
     newEntry->trieHandle = trie.insert(
-        key, TlbEntryTrie::MaxBits - entry.logBytes + PageShift, newEntry
-    );
+        key, TlbEntryTrie::MaxBits - entry.logBytes + PageShift, newEntry);
     return newEntry;
 }
 
 void
 TLB::demapPage(Addr vaddr, uint64_t asid)
 {
+
     // Note: vaddr is Reg[rs1] and asid is Reg[rs2]
     // The definition of this instruction is
     // if vaddr=x0 and asid=x0, then flush all
@@ -205,8 +216,7 @@ TLB::demapPage(Addr vaddr, uint64_t asid)
         flushAll();
     } else {
         if (vaddr != 0 && asid != 0) {
-            // TODO: When supporting other address translation modes, fix this
-            Addr vpn = getVPNFromVAddr(vaddr, AddrXlateMode::SV39);
+            Addr vpn = getVPNFromVAddr(vaddr, getAddrXlateMode(satp_mode));
             TlbEntry *entry = lookup(vpn, asid, BaseMMU::Read, true);
             if (entry) {
                 remove(entry - tlb.data());
@@ -230,8 +240,9 @@ TLB::flushAll()
 {
     DPRINTF(TLB, "flushAll()\n");
     for (size_t i = 0; i < size; i++) {
-        if (tlb[i].trieHandle)
+        if (tlb[i].trieHandle) {
             remove(i);
+        }
     }
 }
 
@@ -239,8 +250,8 @@ void
 TLB::remove(size_t idx)
 {
     DPRINTF(TLB, "remove(vpn=%#x, asid=%#x): ppn=%#x pte=%#x size=%#x\n",
-        tlb[idx].vaddr, tlb[idx].asid, tlb[idx].paddr, tlb[idx].pte,
-        tlb[idx].size());
+            tlb[idx].vaddr, tlb[idx].asid, tlb[idx].paddr, tlb[idx].pte,
+            tlb[idx].size());
 
     assert(tlb[idx].trieHandle);
     trie.remove(tlb[idx].trieHandle);
@@ -249,81 +260,44 @@ TLB::remove(size_t idx)
 }
 
 Fault
-TLB::checkPermissions(ThreadContext* tc, MemAccessInfo mem_access, Addr vaddr,
-            BaseMMU::Mode mode, PTESv39 pte, Addr gvaddr, XlateStage stage)
+TLB::checkPermissions(ThreadContext *tc, MemAccessInfo mem_access, Addr vaddr,
+                      BaseMMU::Mode mode, PTES pte, Addr gvaddr,
+                      XlateStage stage)
 {
-    MISA misa = tc->readMiscReg(MISCREG_ISA);
-    STATUS status = tc->readMiscReg(MISCREG_STATUS);
-    PrivilegeMode priv = stage == XlateStage::GSTAGE ?
-        PRV_U : mem_access.priv;
 
-    bool sum = status.sum;
-    bool mxr = status.mxr;
-    bool gpf = stage == GSTAGE;
-    bool virt = mem_access.virt;
+    Fault res;
 
-    bool pf = false;
-
-    if (misa.rvh && mem_access.virt && stage == FIRST_STAGE) {
-        STATUS vsstatus = tc->readMiscReg(MISCREG_VSSTATUS);
-        sum = vsstatus.sum;
-        mxr |= vsstatus.mxr;
+    switch (satp_mode) {
+        case 8:
+            res = templateCheckPermissions<PTESv39>(
+                tc, mem_access, vaddr, mode, pte.getSV39(), gvaddr, stage);
+            break;
+        case 9:
+            res = templateCheckPermissions<PTESv48>(
+                tc, mem_access, vaddr, mode, pte.getSV48(), gvaddr, stage);
+            break;
     }
 
-
-    if (mem_access.hlvx) {
-        if (!pte.x) {
-            pf = true; DPRINTF(TLB, "HLVX with no exec perm, raising PF\n");
-        }
-    }
-    else if (mode == BaseMMU::Read && !pte.r) {
-        if (mxr && pte.x) {
-            DPRINTF(TLBVerbose, "MXR bit on, load from exec page success\n");
-        }
-        else {
-            pf = true; DPRINTF(TLB, "PTE has no read perm, raising PF\n");
-        }
-    }
-    else if (mode == BaseMMU::Write && !pte.w) {
-        pf = true; DPRINTF(TLB, "PTE has no write perm, raising PF\n");
-    }
-    else if (mode == BaseMMU::Execute && !pte.x) {
-        pf = true; DPRINTF(TLB, "PTE has no exec perm, raising PF\n");
-    }
-
-    if (!pf) {
-        // check pte.u
-        if (priv == PRV_U && !pte.u) {
-            pf = true; DPRINTF(TLB, "PTE not user accessible, raising PF\n");
-        }
-        else if (priv == PRV_S && pte.u &&
-                (mode == BaseMMU::Execute || sum == 0)) {
-            pf = true; DPRINTF(TLB, "PTE only user accessible, raising PF\n");
-        }
-    }
-
-    return pf ? createPagefault(vaddr, mode, gvaddr, gpf, virt) : NoFault;
+    return res;
 }
 
 Fault
-TLB::createPagefault(Addr vaddr, BaseMMU::Mode mode,
-                     Addr gvaddr, bool gpf, bool virt)
+TLB::createPagefault(Addr vaddr, BaseMMU::Mode mode, Addr gvaddr, bool gpf,
+                     bool virt)
 {
     ExceptionCode code;
     if (mode == BaseMMU::Read) {
-        code = gpf ? ExceptionCode::LOAD_GUEST_PAGE :
-                     ExceptionCode::LOAD_PAGE;
-    }
-    else if (mode == BaseMMU::Write) {
-        code = gpf ? ExceptionCode::STORE_GUEST_PAGE :
-                     ExceptionCode::STORE_PAGE;
-    }
-    else {
-        code = gpf ? ExceptionCode::INST_GUEST_PAGE :
-                     ExceptionCode::INST_PAGE;
+        code = gpf ? ExceptionCode::LOAD_GUEST_PAGE : ExceptionCode::LOAD_PAGE;
+    } else if (mode == BaseMMU::Write) {
+        code =
+            gpf ? ExceptionCode::STORE_GUEST_PAGE : ExceptionCode::STORE_PAGE;
+    } else {
+        code = gpf ? ExceptionCode::INST_GUEST_PAGE : ExceptionCode::INST_PAGE;
     }
 
-    if (gpf) { assert(virt); }
+    if (gpf) {
+        assert(virt);
+    }
     return std::make_shared<AddressFault>(vaddr, code, gvaddr, virt);
 }
 
@@ -331,8 +305,13 @@ Addr
 TLB::hiddenTranslateWithTLB(Addr vaddr, uint16_t asid, Addr xmode,
                             BaseMMU::Mode mode)
 {
+    DPRINTF(TLB, "Current satp mode : %d\n", satp_mode);
     TlbEntry *e = lookup(getVPNFromVAddr(vaddr, xmode), asid, mode, true);
-    assert(e != nullptr);
+    DPRINTF(TLB, "VADDR: %d, XMODE: %d, ASID: %d, MODE: %d\n", vaddr, xmode, asid, mode);
+    //assert(e != nullptr);
+    if(!e) {
+        panic("TLB miss after page walk");
+    }
     return e->paddr << PageShift | (vaddr & mask(e->logBytes));
 }
 
@@ -341,6 +320,12 @@ TLB::doTranslate(const RequestPtr &req, ThreadContext *tc,
                  BaseMMU::Translation *translation, BaseMMU::Mode mode,
                  bool &delayed)
 {
+
+    if (satp_mode == BARE) {
+        req->setPaddr((req->getVaddr()));
+        return NoFault;
+    }
+
     delayed = false;
 
     MemAccessInfo memaccess = getMemAccessInfo(tc, mode, req->getArchFlags());
@@ -348,9 +333,8 @@ TLB::doTranslate(const RequestPtr &req, ThreadContext *tc,
 
     MISA misa = tc->readMiscReg(MISCREG_ISA);
 
-    SATP satp = (misa.rvh && memaccess.virt) ?
-        tc->readMiscReg(MISCREG_VSATP) :
-        tc->readMiscReg(MISCREG_SATP);
+    SATP satp = (misa.rvh && memaccess.virt) ? tc->readMiscReg(MISCREG_VSATP)
+                                             : tc->readMiscReg(MISCREG_SATP);
 
     Addr vpn = getVPNFromVAddr(vaddr, satp.mode);
 
@@ -371,15 +355,13 @@ TLB::doTranslate(const RequestPtr &req, ThreadContext *tc,
                     delayed = true;
                 }
                 return fault;
-            }
-            else if (fault != NoFault) {
+            } else if (fault != NoFault) {
                 return fault;
             }
             e = lookup(vpn, satp.asid, mode, true);
             assert(e != nullptr);
         }
-    }
-    else {
+    } else {
         // Don't lookup and don't insert when bypassing the TLB.
         // We get the translation result back in memory pointed to by
         // TlbEntry *e which is not inserted!
@@ -396,25 +378,36 @@ TLB::doTranslate(const RequestPtr &req, ThreadContext *tc,
     Fault fault;
     if (memaccess.bypassTLB()) {
         fault = NoFault;
-    }
-    else {
+    } else {
         if (memaccess.virt) {
             if (e->gpte != 0) {
-                fault = checkPermissions(
-                    tc, memaccess, vaddr, mode, e->gpte);
+                fault = checkPermissions(tc, memaccess, vaddr, mode, e->gpte);
             } else {
                 fault = NoFault;
             }
-        }
-        else {
-            fault = checkPermissions(
-                tc, memaccess, vaddr, mode, e->pte);
+        } else {
+            fault = checkPermissions(tc, memaccess, vaddr, mode, e->pte);
         }
     }
 
     // if we want to write and it isn't writable, do a page table walk
     // again to update the dirty flag.
-    if (e && (mode == BaseMMU::Write) && !e->pte.w) {
+    bool e_pte_w;
+    switch(satp_mode) {
+        /*case BARE:
+            return fault;*/
+        case SV39:
+            e_pte_w = (bool)e->pte.getSV39().w;
+            break;
+        case SV48:
+            e_pte_w = (bool)e->pte.getSV48().w;
+            break;
+        default:
+            DPRINTF(TLB, "satp.mode = %d\n", satp.mode);
+            DPRINTF(TLB, "satp_mode = %d\n", satp_mode);
+            panic("Unsupported translation mode: $d\n", satp_mode);
+    }
+    if (e && (mode == BaseMMU::Write) && !e_pte_w) {
         DPRINTF(TLB, "Dirty bit not set, repeating PT walk\n");
         fault = walker->start(tc, translation, req, mode);
         // Atomic translations have translation == nullptr
@@ -429,45 +422,48 @@ TLB::doTranslate(const RequestPtr &req, ThreadContext *tc,
                 delayed = true;
             }
 
-            if (memaccess.bypassTLB())
+            if (memaccess.bypassTLB()) {
                 delete e;
+            }
             return fault;
-        }
-        else if (fault != NoFault) {
-            if (memaccess.bypassTLB())
+        } else if (fault != NoFault) {
+            if (memaccess.bypassTLB()) {
                 delete e;
+            }
             return fault;
         }
     }
 
     if (fault != NoFault) {
-        if (memaccess.bypassTLB())
+        if (memaccess.bypassTLB()) {
             delete e;
+        }
         return fault;
     }
 
-    Addr paddr = ((e->paddr >> (e->logBytes - PageShift)) << e->logBytes)
-        | (vaddr & mask(e->logBytes));
+    Addr paddr = ((e->paddr >> (e->logBytes - PageShift)) << e->logBytes) |
+                 (vaddr & mask(e->logBytes));
 
     DPRINTF(TLBVerbose, "translate(vaddr=%#x, vpn=%#x, asid=%#x): %#x\n",
             vaddr, vpn, satp.asid, paddr);
     req->setPaddr(paddr);
 
-    if (memaccess.bypassTLB())
+    if (memaccess.bypassTLB()) {
         delete e;
+    }
 
     return NoFault;
 }
 
 MemAccessInfo
 TLB::getMemAccessInfo(ThreadContext *tc, BaseMMU::Mode mode,
-        const Request::ArchFlagsType arch_flags)
+                      const Request::ArchFlagsType arch_flags)
 {
     MISA misa = tc->readMiscReg(MISCREG_ISA);
     STATUS status = tc->readMiscReg(MISCREG_STATUS);
     HSTATUS hstatus = tc->readMiscReg(MISCREG_HSTATUS);
     PrivilegeMode priv = (PrivilegeMode)tc->readMiscReg(MISCREG_PRV);
-    ISA* isa = dynamic_cast<ISA*>(tc->getIsaPtr());
+    ISA *isa = dynamic_cast<ISA *>(tc->getIsaPtr());
     assert(isa);
 
     bool nmie = !isa->enableSmrnmi() || tc->readMiscRegNoEffect(MISCREG_NMIE);
@@ -511,13 +507,13 @@ TLB::translate(const RequestPtr &req, ThreadContext *tc,
     delayed = false;
 
     if (FullSystem) {
-        MemAccessInfo memaccess = getMemAccessInfo(
-            tc, mode, req->getArchFlags());
+        MemAccessInfo memaccess =
+            getMemAccessInfo(tc, mode, req->getArchFlags());
         PrivilegeMode pmode = memaccess.priv;
         MISA misa = tc->readMiscRegNoEffect(MISCREG_ISA);
-        SATP satp = (misa.rvh && memaccess.virt) ?
-            tc->readMiscReg(MISCREG_VSATP) :
-            tc->readMiscReg(MISCREG_SATP);
+        SATP satp = (misa.rvh && memaccess.virt)
+                        ? tc->readMiscReg(MISCREG_VSATP)
+                        : tc->readMiscReg(MISCREG_SATP);
 
         Fault fault = NoFault;
 
@@ -537,8 +533,7 @@ TLB::translate(const RequestPtr &req, ThreadContext *tc,
                 if (hgatp.mode == AddrXlateMode::BARE) {
                     req->setFlags(Request::PHYSICAL);
                 }
-            }
-            else {
+            } else {
                 req->setFlags(Request::PHYSICAL);
             }
         }
@@ -559,12 +554,13 @@ TLB::translate(const RequestPtr &req, ThreadContext *tc,
         // TODO where is that written in the manual?
         if (!delayed && fault == NoFault && bits(req->getPaddr(), 63)) {
             ExceptionCode code;
-            if (mode == BaseMMU::Read)
+            if (mode == BaseMMU::Read) {
                 code = ExceptionCode::LOAD_ACCESS;
-            else if (mode == BaseMMU::Write)
+            } else if (mode == BaseMMU::Write) {
                 code = ExceptionCode::STORE_ACCESS;
-            else
+            } else {
                 code = ExceptionCode::INST_ACCESS;
+            }
             fault = std::make_shared<AddressFault>(req->getVaddr(), code);
         }
 
@@ -588,10 +584,11 @@ TLB::translate(const RequestPtr &req, ThreadContext *tc,
         // length is long enough to wrap around from the end of the memory to
         // the start.
         assert(req->getSize() > 0);
-        if (req->getVaddr() + req->getSize() - 1 < req->getVaddr())
+        if (req->getVaddr() + req->getSize() - 1 < req->getVaddr()) {
             return std::make_shared<GenericPageTableFault>(req->getVaddr());
+        }
 
-        Process * p = tc->getProcessPtr();
+        Process *p = tc->getProcessPtr();
 
         /*
          * In RV32 Linux, as vaddr >= 0x80000000 is legal in userspace
@@ -601,8 +598,9 @@ TLB::translate(const RequestPtr &req, ThreadContext *tc,
         Addr vaddr = getValidAddr(req->getVaddr(), tc, mode);
         Addr paddr;
 
-        if (!p->pTable->translate(vaddr, paddr))
+        if (!p->pTable->translate(vaddr, paddr)) {
             return std::make_shared<GenericPageTableFault>(req->getVaddr());
+        }
 
         req->setPaddr(paddr);
 
@@ -625,10 +623,11 @@ TLB::translateTiming(const RequestPtr &req, ThreadContext *tc,
     bool delayed;
     assert(translation);
     Fault fault = translate(req, tc, translation, mode, delayed);
-    if (!delayed)
+    if (!delayed) {
         translation->finish(fault, req, tc, mode);
-    else
+    } else {
         translation->markDelayed();
+    }
 }
 
 Fault
@@ -641,8 +640,8 @@ TLB::translateFunctional(const RequestPtr &req, ThreadContext *tc,
     if (FullSystem) {
         MMU *mmu = static_cast<MMU *>(tc->getMMUPtr());
 
-        MemAccessInfo memaccess = getMemAccessInfo(
-            tc, mode, req->getArchFlags());
+        MemAccessInfo memaccess =
+            getMemAccessInfo(tc, mode, req->getArchFlags());
         PrivilegeMode pmode = memaccess.priv;
         MISA misa = tc->readMiscRegNoEffect(MISCREG_ISA);
         SATP satp = tc->readMiscReg(MISCREG_SATP);
@@ -650,16 +649,15 @@ TLB::translateFunctional(const RequestPtr &req, ThreadContext *tc,
             satp.mode != AddrXlateMode::BARE) {
             Walker *walker = mmu->getDataWalker();
             unsigned logBytes;
-            Fault fault = walker->startFunctional(
-                    tc, paddr, logBytes, mode);
-            if (fault != NoFault)
+            Fault fault = walker->startFunctional(tc, paddr, logBytes, mode);
+            if (fault != NoFault) {
                 return fault;
+            }
 
             Addr masked_addr = vaddr & mask(logBytes);
             paddr |= masked_addr;
         }
-    }
-    else {
+    } else {
         Process *process = tc->getProcessPtr();
         const auto *pte = process->pTable->lookup(vaddr);
 
@@ -671,8 +669,9 @@ TLB::translateFunctional(const RequestPtr &req, ThreadContext *tc,
             }
         }
 
-        if (!pte)
+        if (!pte) {
             return std::make_shared<GenericPageTableFault>(req->getVaddr());
+        }
 
         paddr = pte->paddr | process->pTable->pageOffset(vaddr);
     }
@@ -683,8 +682,8 @@ TLB::translateFunctional(const RequestPtr &req, ThreadContext *tc,
 }
 
 Fault
-TLB::finalizePhysical(const RequestPtr &req,
-                      ThreadContext *tc, BaseMMU::Mode mode) const
+TLB::finalizePhysical(const RequestPtr &req, ThreadContext *tc,
+                      BaseMMU::Mode mode) const
 {
     return NoFault;
 }
@@ -699,14 +698,16 @@ TLB::serialize(CheckpointOut &cp) const
 
     uint32_t _count = 0;
     for (uint32_t x = 0; x < size; x++) {
-        if (tlb[x].trieHandle != NULL)
+        if (tlb[x].trieHandle != NULL) {
             tlb[x].serializeSection(cp, csprintf("Entry%d", _count++));
+        }
     }
 }
 
 void
 TLB::unserialize(CheckpointIn &cp)
 {
+
     // Do not allow to restore with a smaller tlb.
     uint32_t _size;
     UNSERIALIZE_SCALAR(_size);
@@ -721,8 +722,7 @@ TLB::unserialize(CheckpointIn &cp)
         freeList.pop_front();
 
         newEntry->unserializeSection(cp, csprintf("Entry%d", x));
-        // TODO: When supporting other addressing modes fix this
-        Addr vpn = getVPNFromVAddr(newEntry->vaddr, AddrXlateMode::SV39);
+        Addr vpn = getVPNFromVAddr(newEntry->vaddr, getAddrXlateMode(satp_mode));
         Addr key = buildKey(vpn, newEntry->asid);
         newEntry->trieHandle = trie.insert(key,
             TlbEntryTrie::MaxBits - newEntry->logBytes + PageShift, newEntry);
@@ -730,22 +730,22 @@ TLB::unserialize(CheckpointIn &cp)
 }
 
 TLB::TlbStats::TlbStats(statistics::Group *parent)
-  : statistics::Group(parent),
-    ADD_STAT(readHits, statistics::units::Count::get(), "read hits"),
-    ADD_STAT(readMisses, statistics::units::Count::get(), "read misses"),
-    ADD_STAT(readAccesses, statistics::units::Count::get(), "read accesses"),
-    ADD_STAT(writeHits, statistics::units::Count::get(), "write hits"),
-    ADD_STAT(writeMisses, statistics::units::Count::get(), "write misses"),
-    ADD_STAT(writeAccesses, statistics::units::Count::get(), "write accesses"),
-    ADD_STAT(hits, statistics::units::Count::get(),
-             "Total TLB (read and write) hits", readHits + writeHits),
-    ADD_STAT(misses, statistics::units::Count::get(),
-             "Total TLB (read and write) misses", readMisses + writeMisses),
-    ADD_STAT(accesses, statistics::units::Count::get(),
-             "Total TLB (read and write) accesses",
-             readAccesses + writeAccesses)
-{
-}
+    : statistics::Group(parent),
+      ADD_STAT(readHits, statistics::units::Count::get(), "read hits"),
+      ADD_STAT(readMisses, statistics::units::Count::get(), "read misses"),
+      ADD_STAT(readAccesses, statistics::units::Count::get(), "read accesses"),
+      ADD_STAT(writeHits, statistics::units::Count::get(), "write hits"),
+      ADD_STAT(writeMisses, statistics::units::Count::get(), "write misses"),
+      ADD_STAT(writeAccesses, statistics::units::Count::get(),
+               "write accesses"),
+      ADD_STAT(hits, statistics::units::Count::get(),
+               "Total TLB (read and write) hits", readHits + writeHits),
+      ADD_STAT(misses, statistics::units::Count::get(),
+               "Total TLB (read and write) misses", readMisses + writeMisses),
+      ADD_STAT(accesses, statistics::units::Count::get(),
+               "Total TLB (read and write) accesses",
+               readAccesses + writeAccesses)
+{}
 
 Port *
 TLB::getTableWalkerPort()
