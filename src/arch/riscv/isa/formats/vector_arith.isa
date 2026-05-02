@@ -1729,10 +1729,13 @@ def format KuznechikFormat(code, category, *flags) {{
          'declare_varith_template': declareKuznArithTemplate(Name)},
         flags
     )
-    inst_name, inst_suffix = name.split("_", maxsplit=1)
-    v0_required = 1
 
-    is_destructive_fused = iop.op_class == "SimdMultAccOp"
+    inst_name, inst_suffix = name.split("_", maxsplit=1)
+
+    v0_required = 1
+    mask_cond = 1
+    need_elem_idx = 1
+    is_destructive_fused = 0
 
     dest_reg_id = "vecRegClass[_machInst.vd + _microIdx]"
 
@@ -1744,32 +1747,29 @@ def format KuznechikFormat(code, category, *flags) {{
     src1_reg_id = ""
     src1_reg_id = "vecRegClass[_machInst.vs1 + _microIdx]"
     num_src_regs += 1
-    
+
     old_vd_idx = num_src_regs
 
     set_dest_reg_idx = setDestWrapper(dest_reg_id)
 
     set_src_reg_idx = ""
-    if category != "OPIVI":
-        set_src_reg_idx += setSrcWrapper(src1_reg_id)
+    set_src_reg_idx += setSrcWrapper(src1_reg_id)
     set_src_reg_idx += setSrcWrapper(src2_reg_id)
 
     dest_set_src_reg_idx = setSrcWrapper(dest_reg_id)
-    if not is_destructive_fused:
-        dest_set_src_reg_idx = tailMaskCondSetSrcWrapper(dest_set_src_reg_idx)
+    dest_set_src_reg_idx = tailMaskCondSetSrcWrapper(dest_set_src_reg_idx)
     set_src_reg_idx += dest_set_src_reg_idx
 
-    if v0_required:
-        set_src_reg_idx += setSrcVm()
+    set_src_reg_idx += setSrcVm()
 
     # code
     code = code
 
     vm_decl_rd = ""
-    if v0_required:
-        vm_decl_rd = vmDeclAndReadData()
+    vm_decl_rd = vmDeclAndReadData()
 
     set_vlenb = setVlenb()
+
 
     microiop = InstObjParams(name + "_micro",
         Name + "Micro",

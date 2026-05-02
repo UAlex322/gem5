@@ -6493,10 +6493,26 @@ decode QUADRANT default Unknown::unknown() {
         0x2b: decode FUNCT3 {
             0x0: decode FUNCT7{
                 0x0: KuznechikFormat::kuznechik_enc({{
-                    kuznechik_encrypt(Vd_vu, Vs1_vu, Vs2_vu);
+                    uint8_t *source, *key, *dest;
+                    for (uint64_t i = 0; i < 16; ++i){
+                        source[i] = Vs2_vu[i];
+                        key[i] = Vs1_vu[i];
+                    }
+                    kuznechik_encrypt(*source, *key, *dest);
+                    for (uint64_t i = 0; i < 16; ++i){
+                        Vd_vu[i] = dest[i];
+                    }
                 }}, OPIVV, SimdMiscOp);
                 0x1: KuznechikFormat::kuznechik_dec({{
-                    kuznechik_decrypt(Vd_vu, Vs1_vu, Vs2_vu);
+                    uint8_t *source, *key, *dest;
+                    for (uint64_t i = 0; i < 16; ++i){
+                        source[i] = Vs2_vu[i];
+                        key[i] = Vs1_vu[i];
+                    }
+                    kuznechik_decrypt(*source, *key, *dest);
+                    for (uint64_t i = 0; i < 16; ++i){
+                        Vd_vu[i] = dest[i];
+                    }
                 }}, OPIVV, SimdMiscOp);
             }
         }
