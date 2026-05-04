@@ -606,6 +606,10 @@ TLB::translate(const RequestPtr &req, ThreadContext *tc,
 
         req->setPaddr(paddr);
 
+        if (paddr >= 0x50000000 && paddr < 0x54000000) {
+            req->setFlags(Request::UNCACHEABLE | Request::STRICT_ORDER);
+        }
+
         return NoFault;
     }
 }

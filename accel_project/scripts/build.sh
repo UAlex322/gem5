@@ -37,6 +37,25 @@ for BLOCK_SIZE in 16 32 64; do
 done
 
 echo ""
+echo "=== Building bench_matmul N=128 and N=256 (block=64, float) ==="
+
+for N in 128 256 512; do
+    NAME="bench_cpu_b64_float_n${N}"
+    echo "Building $NAME..."
+    $COMPILER $FLAGS \
+        -DMATRIX_N=$N -DBLOCK_SIZE=64 \
+        -o $BIN_DIR/$NAME \
+        $SRC_DIR/bench_matmul.c
+
+    NAME="bench_accel_b64_float_n${N}"
+    echo "Building $NAME..."
+    $COMPILER $FLAGS \
+        -DUSE_ACCEL -DMATRIX_N=$N -DBLOCK_SIZE=64 \
+        -o $BIN_DIR/$NAME \
+        $SRC_DIR/bench_matmul.c
+done
+
+echo ""
 echo "=== Building bench_multi_accel ==="
 
 for NUM_ACCELS in 1 2 4; do

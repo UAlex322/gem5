@@ -1,9 +1,16 @@
 import argparse
 
-from m5.objects import MatrixAccel
+from m5.objects import (
+    Cache,
+    IOXBar,
+    MatrixAccel,
+)
 
 from gem5.components.boards.simple_board import SimpleBoard
 from gem5.components.cachehierarchies.classic.no_cache import NoCache
+from gem5.components.cachehierarchies.classic.private_l1_private_l2_cache_hierarchy import (
+    PrivateL1PrivateL2CacheHierarchy,
+)
 from gem5.components.memory.single_channel import SingleChannelDDR4_2400
 from gem5.components.processors.cpu_types import CPUTypes
 from gem5.components.processors.simple_processor import SimpleProcessor
@@ -31,6 +38,11 @@ parser.add_argument(
     default=1,
     help="Number of accelerators (0 = CPU-only baseline)",
 )
+parser.add_argument(
+    "--cache",
+    action="store_true",
+    help="Enable L1+L2 cache (32KiB L1D, 32KiB L1I, 256KiB L2)",
+)
 args = parser.parse_args()
 
 cpu_type_map = {
@@ -38,7 +50,14 @@ cpu_type_map = {
     "o3": CPUTypes.O3,
 }
 
-cache_hierarchy = NoCache()
+if args.cache:
+    cache_hierarchy = PrivateL1PrivateL2CacheHierarchy(
+        l1d_size="32KiB",
+        l1i_size="32KiB",
+        l2_size="256KiB",
+    )
+else:
+    cache_hierarchy = NoCache()
 memory = SingleChannelDDR4_2400("512MiB")
 processor = SimpleProcessor(
     cpu_type=cpu_type_map[args.cpu_type],
@@ -56,6 +75,7 @@ board = SimpleBoard(
 ACCEL_BASE = 0x50000000
 ACCEL_STEP = 0x01000000
 
+accels = []
 for i in range(args.num_accels):
     accel = MatrixAccel(
         pio_addr=ACCEL_BASE + i * ACCEL_STEP,
@@ -63,13 +83,37 @@ for i in range(args.num_accels):
         compute_latency=args.compute_latency,
     )
     accel.pio = cache_hierarchy.membus.mem_side_ports
-    accel.dma = cache_hierarchy.membus.cpu_side_ports
     setattr(board, f"matrix_accel_{i}", accel)
+    accels.append(accel)
 
 board.set_se_binary_workload(BinaryResource(local_path=args.binary))
 
+# After set_se_binary_workload, board.mem_ranges is available.
+# With cache: route DMA through IOXBar+IOCache so it generates snoop requests
+# to invalidate Modified L1/L2 lines before writing (fixes cache.cc:1225 panic).
+# Without cache: connect DMA directly to membus (no coherence issue).
+if args.cache and accels:
+    board.iobus = IOXBar()
+    board.iocache = Cache(
+        assoc=8,
+        tag_latency=50,
+        data_latency=50,
+        response_latency=50,
+        mshrs=20,
+        size="1KiB",
+        tgts_per_mshr=12,
+        addr_ranges=board.mem_ranges,
+    )
+    board.iocache.mem_side = cache_hierarchy.membus.cpu_side_ports
+    board.iocache.cpu_side = board.iobus.mem_side_ports
+    for accel in accels:
+        accel.dma = board.iobus.cpu_side_ports
+else:
+    for accel in accels:
+        accel.dma = cache_hierarchy.membus.cpu_side_ports
+
 print(
-    f"--- cpu={args.cpu_type} compute_latency={args.compute_latency} "
+    f"--- cpu={args.cpu_type} cache={args.cache} compute_latency={args.compute_latency} "
     f"num_accels={args.num_accels} binary={args.binary} ---"
 )
 

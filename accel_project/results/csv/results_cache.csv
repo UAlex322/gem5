@@ -1,0 +1,9 @@
+mode,cpu_type,block_size,data_type,compute_latency,cache,simTicks,simInsts,simSeconds
+cpu,timing,64,float,-,no,158100009000,1697123,0.158100
+accel,timing,64,float,500,no,11054949000,149148,0.011055
+cpu,timing,64,float,-,yes,3112031000,1697123,0.003112
+accel,timing,64,float,500,yes,264821000,149218,0.000265
+cpu,o3,64,float,-,no,27615351000,1697123,0.027615
+accel,o3,64,float,500,no,1217299000,149198,0.001217
+cpu,o3,64,float,-,yes,1359306000,1697123,0.001359
+accel,o3,64,float,500,yes,73796000,149216,0.000074
