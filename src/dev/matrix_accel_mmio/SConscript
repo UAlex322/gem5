@@ -1,0 +1,5 @@
+Import('*')
+
+SimObject('MatrixAccelMMIO.py', sim_objects=['MatrixAccelMMIO'])
+Source('matrix_accel_mmio.cc')
+DebugFlag('MatrixAccelMMIO')
