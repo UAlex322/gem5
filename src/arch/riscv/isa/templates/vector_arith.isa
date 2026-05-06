@@ -2789,7 +2789,7 @@ Fault
 {
     using vu [[maybe_unused]] = std::make_unsigned_t<ElemType>;
     using vi [[maybe_unused]] = std::make_signed_t<ElemType>;
-    [[maybe_unused]] constexpr size_t sew = sizeof(uint8_t) * 8;
+    [[maybe_unused]] constexpr size_t sew = 8;
 
     bool set_dirty = true;
     bool check_vill = true;
