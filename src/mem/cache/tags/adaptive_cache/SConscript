@@ -8,3 +8,5 @@ Source("adaptive_cache.cc")
 Source("adaptive_index.cc")
 
 DebugFlag("AdaptiveAssoc")
+DebugFlag("AdaptiveIndex")
+DebugFlag("AdaptiveOthers")

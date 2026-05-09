@@ -3,6 +3,7 @@
 
 #include <vector>
 
+#include "debug/AdaptiveIndex.hh"
 #include "mem/cache/tags/tagged_entry.hh"
 #include "params/AdaptiveIndex.hh"
 

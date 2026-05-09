@@ -18,6 +18,11 @@ AdaptiveIndex::AdaptiveIndex(const AdaptiveIndexParams &p)
 void
 AdaptiveIndex::rebuildStructure(unsigned new_assoc)
 {
+    DPRINTF(AdaptiveIndex,
+            "AdaptiveIndex::rebuildStructure()\n"
+            "\tcurrentAssoc: %u\n"
+            "\tnew_assoc: %u\n",
+            currentAssoc, new_assoc);
     currentAssoc = new_assoc;
     currentNumSets = numEntries / currentAssoc;
 
@@ -64,6 +69,11 @@ AdaptiveIndex::rebuildStructure(unsigned new_assoc)
 void
 AdaptiveIndex::setAssociativity(unsigned new_assoc)
 {
+    DPRINTF(AdaptiveIndex,
+            "AdaptiveIndex::setAssociativity()\n"
+            "\tcurrentAssoc: %u\n"
+            "\tnew_assoc: %u\n",
+            currentAssoc, new_assoc);
     if (new_assoc == currentAssoc) {
         return;
     }

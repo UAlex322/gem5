@@ -19,18 +19,28 @@ AdaptiveAssoc::CacheFeatures::CacheFeatures(double _miss_rate,
 {}
 
 unsigned
-AdaptiveAssoc::DecisionTree::Predict(const CacheFeatures &f) const
+AdaptiveAssoc::DecisionTree::Predict(const CacheFeatures &f)
 {
-    /*DPRINTF(AdaptiveAssoc,
-        "%d Tick -- DecisionTree::Predict(\n"
-        "\tmiss_rate: %lf\n"
-        "\tmiss_count: %lu\n"
-        "\ttotal_mem_access: %lu\n"
-        "\tipc: %lf\n"
-        "\tprev_assoc: %u\n)\n",
-        curTick(), f.miss_rate, f.miss_count,
-        f.total_mem_access, f.ipc, f.prev_assoc
-    );*/
+    switch (test_var) {
+        case 0:
+            test_var = 1;
+            return 8;
+        case 1:
+            test_var = 2;
+            return 4;
+        case 2:
+            test_var = 3;
+            return 2;
+        case 3:
+            test_var = 4;
+            return 1;
+        case 4:
+            test_var = 0;
+            return 16;
+        default:
+            break;
+    }
+    /*
     if (f.miss_rate < 0.27) {
         switch (f.prev_assoc) {
             case 1:
@@ -77,7 +87,7 @@ AdaptiveAssoc::DecisionTree::Predict(const CacheFeatures &f) const
         } else {
             return 16;
         }
-    }
+    }*/
     return 16;
 }
 
@@ -90,20 +100,13 @@ AdaptiveAssoc::PerformanceMonitor::executedInsts()
             tmp_insts += cache_tag->cpus[i]->getCurrentInstCount(j);
         }
     }
-    /*DPRINTF(AdaptiveAssoc,
-        "%d Tick -- PerformanceMonitor::executedInsts()\n"
-        "\tResult: %d\n", curTick(), tmp_insts
-    );*/
     return tmp_insts;
 }
 
 void
 AdaptiveAssoc::PerformanceMonitor::processNextDecisionEndEvent()
 {
-    /*DPRINTF(AdaptiveAssoc,
-        "%d Tick -- PerformanceMonitor::processNextDecisionEndEvent()\n",
-        curTick()
-    );*/
+    cache_tag->toDPRINTF("PerformanceMonitor::processNextDecisionEndEvent()");
     instructions = executedInsts() - instructions;
     uint64_t cycles = (curTick() - period_start) / proc_time_clock;
 
@@ -131,10 +134,6 @@ AdaptiveAssoc::PerformanceMonitor::processNextDecisionEndEvent()
 void
 AdaptiveAssoc::PerformanceMonitor::processPeriodEndEvent()
 {
-    /*DPRINTF(AdaptiveAssoc,
-        "%d Tick -- PerformanceMonitor::processPeriodEndEvent()\n",
-        curTick()
-    );*/
     startNewPeriod(curTick());
 }
 
@@ -154,9 +153,6 @@ AdaptiveAssoc::PerformanceMonitor::PerformanceMonitor(
 void
 AdaptiveAssoc::PerformanceMonitor::setCpuClock(Tick tm)
 {
-    /*DPRINTF(AdaptiveAssoc,
-        "%d Tick -- PerformanceMonitor::setCpuClock(\n"
-        "\ttm: %d\n)\n", curTick(), tm);*/
     proc_time_clock = tm;
 }
 
@@ -187,7 +183,7 @@ AdaptiveAssoc::PerformanceMonitor::startNewPeriod(Tick now)
         cache_tag->deschedule(cache_tag->nextPeriodEndEvent);
     }
     cache_tag->schedule(cache_tag->nextPeriodEndEvent, now + reconfig_period);
-    cache_tag->toDPRINTF();
+    cache_tag->toDPRINTF("PerformanceMonitor::startNewPeriod()");
 }
 
 AdaptiveAssoc::AdaptiveAssoc(const AdaptiveAssocParams &p)
@@ -214,13 +210,13 @@ AdaptiveAssoc::init()
         monitor.startNewPeriod(cpu->clockEdge());
     }
     adaptive_index = static_cast<AdaptiveIndex *>(indexingPolicy);
-    toDPRINTF();
+    toDPRINTF("AdaptiveAssoc::init()");
 }
 
 CacheBlk *
 AdaptiveAssoc::accessBlock(const PacketPtr pkt, Cycles &lat)
 {
-    DPRINTF(AdaptiveAssoc, "AdaptiveAssoc::accessBlock()\n", );
+    DPRINTF(AdaptiveOthers, "AdaptiveAssoc::accessBlock()\n");
     CacheBlk *blk = BaseSetAssoc::accessBlock(pkt, lat);
     bool hit = (blk != nullptr && blk->isValid());
     monitor.onAccess(hit);
@@ -235,11 +231,18 @@ AdaptiveAssoc::reconfigureAssociativity(unsigned new_assoc)
             "\tcurrent_assoc: %d\n"
             "\tnew_assoc: %d\n)\n",
             current_assoc, new_assoc);
+    parent_cache->cpuSidePort.setBlocked();
     writebackDirtyBlocks();
+    // parent_cache->memWriteback();
     flushCache();
     setWayAllocationMax(new_assoc);
     adaptive_index->setAssociativity(new_assoc);
+    /*for (unsigned i = 0; i < numBlocks; i++) {
+        indexingPolicy->setEntry(&blks[i], i);
+    }*/
+    tagsInit();
     current_assoc = new_assoc;
+    parent_cache->cpuSidePort.clearBlocked();
 }
 
 unsigned
@@ -257,10 +260,13 @@ AdaptiveAssoc::getReconfigPeriod() const
 void
 AdaptiveAssoc::writebackDirtyBlocks()
 {
+    PacketList writebacks;
+
     for (auto &blk : blks) {
         if (blk.isSet(CacheBlk::DirtyBit)) {
             PacketPtr pkt = parent_cache->writebackBlk(&blk);
             if (pkt) {
+                writebacks.push_back(pkt);
                 DPRINTF(AdaptiveAssoc,
                         "Timing writeback initiated for addr=%#lx\n",
                         regenerateBlkAddr(&blk));
@@ -270,6 +276,11 @@ AdaptiveAssoc::writebackDirtyBlocks()
                         regenerateBlkAddr(&blk));
             }
         }
+    }
+    if (!writebacks.empty()) {
+        DPRINTF(AdaptiveAssoc, "Submitted %d writebacks to doWritebacks\n",
+                writebacks.size());
+        parent_cache->doWritebacks(writebacks, curTick());
     }
 }
 
@@ -291,10 +302,10 @@ AdaptiveAssoc::flushCache()
 }
 
 void
-AdaptiveAssoc::toDPRINTF()
+AdaptiveAssoc::toDPRINTF(const char *msg)
 {
     DPRINTF(AdaptiveAssoc,
-            "AdaptiveAssoc::toDPRINTF()\n"
+            "%s\n"
             "\tAdaptiveAssoc.State =\n"
             "\t\tcurrent_assoc: %d\n"
             "\t\treconfig_period: %d\n"
@@ -306,7 +317,7 @@ AdaptiveAssoc::toDPRINTF()
             "\t\tperiod_start: %d\n"
             "\t\treconfig_period: %d\n"
             "\t\tdecision_period: %d\n",
-            current_assoc, reconfig_period, monitor.instructions,
+            msg, current_assoc, reconfig_period, monitor.instructions,
             monitor.mem_accesses, monitor.cache_misses,
             monitor.proc_time_clock, monitor.period_start,
             monitor.reconfig_period, monitor.decision_period);

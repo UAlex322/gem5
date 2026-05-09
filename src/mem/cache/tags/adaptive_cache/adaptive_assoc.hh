@@ -10,6 +10,7 @@
 #include "base/types.hh"
 #include "cpu/base.hh"
 #include "debug/AdaptiveAssoc.hh"
+#include "debug/AdaptiveOthers.hh"
 #include "mem/cache/base.hh"
 #include "mem/cache/cache.hh"
 #include "mem/cache/cache_blk.hh"
@@ -60,8 +61,10 @@ class AdaptiveAssoc : public BaseSetAssoc
     // Decision Tree (100%)
     class DecisionTree
     {
+        int test_var = 0;
+
       public:
-        unsigned Predict(const CacheFeatures &f) const;
+        unsigned Predict(const CacheFeatures &f);
     };
 
     // Monitor that collects info about cache, ipc etc.
@@ -148,8 +151,10 @@ class AdaptiveAssoc : public BaseSetAssoc
     unsigned getCurrentAssoc() const;
     // Get amount of reconfigurations
     uint64_t getReconfigPeriod() const;
+
     // Set things after all simobjects initialized
     void init() override;
+
     void
     setCache(BaseCache *cache)
     {
@@ -162,7 +167,7 @@ class AdaptiveAssoc : public BaseSetAssoc
     // Clear cache
     void flushCache();
     // Print state
-    void toDPRINTF();
+    void toDPRINTF(const char *msg);
 };
 
 } // namespace gem5
