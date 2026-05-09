@@ -1777,7 +1777,7 @@ def format KuznechikFormat(code, category, *flags) {{
         {'code': code,
          'set_dest_reg_idx': set_dest_reg_idx,
          'set_src_reg_idx': set_src_reg_idx,
-         'set_vlenb' : "uint32_t vlenb = 16 >> 3;\n",
+         'set_vlenb' : set_vlenb,
          'vm_decl_rd': vm_decl_rd,
          'copy_old_vd': copyOldVd(old_vd_idx),
          'declare_varith_template': declareKuznArithTemplate(Name + "Micro")},

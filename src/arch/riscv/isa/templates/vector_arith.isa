@@ -2750,6 +2750,11 @@ private:
     RegId srcRegIdxArr[4];
     RegId destRegIdxArr[1];
     bool vm;
+
+    static constexpr int KUZN_BLOCK_SIZE = 16;
+    mutable uint8_t source[KUZN_BLOCK_SIZE];
+    mutable uint8_t key[KUZN_BLOCK_SIZE];
+    mutable uint8_t dest[KUZN_BLOCK_SIZE];
 public:
     %(class_name)s(ExtMachInst _machInst, uint32_t _microVl,
                    uint32_t _microIdx, uint32_t _elen, uint32_t _vlen);

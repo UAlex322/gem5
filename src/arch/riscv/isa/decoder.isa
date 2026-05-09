@@ -6493,12 +6493,6 @@ decode QUADRANT default Unknown::unknown() {
         0x2b: decode FUNCT3 {
             0x0: decode FUNCT7{
                 0x0: KuznechikFormat::kuznechik_enc({{
-                    unsigned char *source, *key, *dest;
-
-                    source = new unsigned char(KUZN_BLOCK_SIZE);
-                    key = new unsigned char(KUZN_BLOCK_SIZE);
-                    dest = new unsigned char(KUZN_BLOCK_SIZE);
-
                     for (uint64_t i = 0; i < KUZN_BLOCK_SIZE; ++i){
                         source[i] = Vs2_vu[i];
                         key[i] = Vs1_vu[i];
@@ -6511,12 +6505,6 @@ decode QUADRANT default Unknown::unknown() {
                     }
                 }}, OPIVV, SimdMiscOp);
                 0x1: KuznechikFormat::kuznechik_dec({{
-                    unsigned char *source, *key, *dest;
-
-                    source = new unsigned char(KUZN_BLOCK_SIZE);
-                    key = new unsigned char(KUZN_BLOCK_SIZE);
-                    dest = new unsigned char(KUZN_BLOCK_SIZE);
-
                     for (uint64_t i = 0; i < KUZN_BLOCK_SIZE; ++i){
                         source[i] = Vs2_vu[i];
                         key[i] = Vs1_vu[i];
