@@ -78,6 +78,7 @@
 namespace gem5
 {
 
+class AdaptiveAssoc;
 namespace prefetch
 {
     class Base;
@@ -1152,6 +1153,8 @@ class BaseCache : public ClockedObject
     void regProbePoints() override;
 
   public:
+    friend AdaptiveAssoc;
+
     BaseCache(const BaseCacheParams &p, unsigned blk_size);
     ~BaseCache();
 

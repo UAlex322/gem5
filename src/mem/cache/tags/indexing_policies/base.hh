@@ -138,8 +138,8 @@ class IndexingPolicyTemplate : public SimObject
      * @param entry The entry pointer.
      * @param index An unique index for the entry.
      */
-    void
-    setEntry(ReplaceableEntry* entry, const uint64_t index)
+    virtual void
+    setEntry(ReplaceableEntry *entry, const uint64_t index)
     {
         // Calculate set and way from entry index
         const std::lldiv_t div_result = std::div((long long)index, assoc);
