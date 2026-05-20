@@ -25,12 +25,14 @@
 * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 #ifndef __ARCH_RISCV_INSTS_KUZNECHIK_HH__
 #define __ARCH_RISCV_INSTS_KUZNECHIK_HH__
 
-#include <cstdint>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 
 namespace gem5
 {
@@ -38,10 +40,13 @@ namespace RiscvISA
 {
 
 // Функция шифрования блока plaintext_128 в блок ciphertext_128 (каждый блок - длины 128 битов)
-void kuznechik_encrypt(uint8_t *plaintext_128, uint8_t *master_key, uint8_t *ciphertext_128);
+void kuznechik_encrypt(const uint8_t *plaintext_128, uint8_t *master_key, uint8_t *ciphertext_128);
 
 // Функция дешифрования блока
-void kuznechik_decrypt(uint8_t *ciphertext_128, uint8_t *master_key, uint8_t *plaintext_128);
+void kuznechik_decrypt(const uint8_t *ciphertext_128, uint8_t *master_key, uint8_t *plaintext_128);
+
+// Функция перевода 16-ричных строковых итерационных ключей в числовой массив
+void kuzn_hexstr_to_array(const char *hexstring, uint8_t *array, size_t bytes);
 
 } // namespace RiscvISA
 } // namespace gem5
