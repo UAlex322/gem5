@@ -6489,5 +6489,40 @@ decode QUADRANT default Unknown::unknown() {
         }
 
         0x1e: M5Op::M5Op();
+
+        0x1f: decode FUNCT3 {
+            0x0: decode FUNCT7{
+                0x0: KuznechikFormat::kuznechik_enc({{
+                    for (uint64_t i = 0; i < KUZN_BLOCK_SIZE; ++i){
+                        source[i] = Vs2_vu[i];
+                        key[i] = Vs1_vu[i];
+                    }
+                    for (uint64_t i = KUZN_BLOCK_SIZE; i < KUZN_BLOCK_SIZE * 2; ++i){
+                        key[i] = Vs1_vu[i];
+                    }
+
+                    kuznechik_encrypt(source, key, dest);
+
+                    for (uint64_t i = 0; i < KUZN_BLOCK_SIZE; ++i){
+                        Vd_vu[i] = dest[i];
+                    }
+                }}, OPIVV, SimdMiscOp);
+                0x1: KuznechikFormat::kuznechik_dec({{
+                    for (uint64_t i = 0; i < KUZN_BLOCK_SIZE; ++i){
+                        source[i] = Vs2_vu[i];
+                        key[i] = Vs1_vu[i];
+                    }
+                    for (uint64_t i = KUZN_BLOCK_SIZE; i < KUZN_BLOCK_SIZE * 2; ++i){
+                        key[i] = Vs1_vu[i];
+                    }
+
+                    kuznechik_decrypt(source, key, dest);
+
+                    for (uint64_t i = 0; i < KUZN_BLOCK_SIZE; ++i){
+                        Vd_vu[i] = dest[i];
+                    }
+                }}, OPIVV, SimdMiscOp);
+            }
+        }
     }
 }
